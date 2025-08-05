@@ -7,12 +7,14 @@
   <style>
     html { font-size: 14px; }
     body { font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif; margin:0; padding:10px; background:#f0f2f5; }
-    h2 { margin-top:0; font-size:1.5rem; }
-    .controls { margin-bottom:8px; }
-    .controls button { padding:6px 12px; font-size:0.9rem; }
-    .status-banner { display:inline-block; padding:6px 10px; margin-left:8px; border-radius:6px; background:#e6f7ff; border:1px solid #40a9ff; font-size:1rem; vertical-align:middle; }
-    .legend { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:8px; }
-    .legend-item { display:flex; align-items:center; padding:4px 8px; border-radius:4px; background:#fff; border:2px solid; font-size:0.9rem; }
+    .header { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+    h2 { margin:0; font-size:1.5rem; }
+    .controls { display:flex; align-items:center; gap:8px; }
+    .controls button { padding:6px 12px; font-size:0.9rem; cursor:pointer; }
+    .status-banner { display:inline-block; padding:6px 10px; border-radius:6px; background:#e6f7ff; border:1px solid #40a9ff; font-size:1rem; }
+    .legend { display:flex; flex-wrap:wrap; gap:6px; }
+    .legend-item { display:flex; align-items:center; padding:4px 8px; border-radius:4px; background:#fff; border:2px solid; font-size:0.9rem; cursor:pointer; }
+    .legend-item.active { box-shadow:0 0 0 2px #000 inset; }
     .legend-color { width:12px; height:12px; border-radius:2px; margin-right:6px; }
     .board-wrapper { width:100%; height: calc(100vh - 260px); overflow:hidden; }
     .board { display: flex; gap:8px; transform-origin: top left; }
@@ -20,33 +22,24 @@
     .col-header { font-weight: bold; margin-bottom:4px; flex:0 0 auto; font-size:0.9rem; }
     .col-header-top { display:flex; justify-content: space-between; align-items: baseline; }
     .cards { flex:1; display:grid; grid-template-columns:1fr 1fr; gap:6px; }
-    .card {
-      background:#fff; border-radius:6px; padding:6px;
-      box-shadow:0 1px 3px rgba(0,0,0,0.1); position: relative; cursor:pointer;
-      color:#1f2937; font-size:0.85rem; display:flex; align-items:center;
-      justify-content:center; height:40px;
-    }
+    .card { background:#fff; border-radius:6px; padding:6px; box-shadow:0 1px 3px rgba(0,0,0,0.1); position: relative; cursor:pointer; color:#1f2937; font-size:0.85rem; display:flex; align-items:center; justify-content:center; height:40px; }
     .small { font-size:0.75rem; color:#222; margin-left:4px; }
-    .modal {
-      position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5);
-      display:flex; align-items:center; justify-content:center; z-index:10;
-    }
-    .modal-content {
-      background:#fff; border-radius:6px; padding:16px; width:90%; max-width:600px;
-      position: relative; box-shadow:0 8px 20px rgba(0,0,0,0.1); font-size:0.85rem;
-    }
-    .close { position:absolute; top:8px; right:8px; cursor:pointer; font-size:1.2rem; }
-    .urgent { outline: 2px solid #ff9f1a; }
+    .urgent { outline:2px solid #ff9f1a; }
     .done { opacity:0.8; }
+    .modal { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:10; }
+    .modal-content { background:#fff; border-radius:6px; padding:16px; width:90%; max-width:600px; position: relative; box-shadow:0 8px 20px rgba(0,0,0,0.1); font-size:0.85rem; }
+    .close { position:absolute; top:8px; right:8px; cursor:pointer; font-size:1.2rem; }
   </style>
 </head>
 <body>
-  <h2>Kanban proizvodnje</h2>
-  <div class="controls">
-    <button id="reloadBtn">Učitaj ponovo</button>
-    <span class="status-banner" id="status-banner">Učitavanje…</span>
+  <div class="header">
+    <h2>Kanban proizvodnje</h2>
+    <div class="controls">
+      <button id="reloadBtn">Učitaj ponovo</button>
+      <span class="status-banner" id="status-banner">Učitavanje…</span>
+      <div class="legend" id="legend"></div>
+    </div>
   </div>
-  <div class="legend" id="legend"></div>
   <div class="board-wrapper">
     <div class="board" id="board">
       <!-- Proizvodnja -->
@@ -104,6 +97,7 @@
 
   <script>
     var endpoint = "https://script.google.com/macros/s/AKfycbwhKEBafSBhrjNYc5oAosp6kRW4q0aInuTBt-tAZKdXARZskavi1qJdYWJRuLLRZnpTmw/exec";
+    var currentFilter = 'Sve';
 
     function fetchAndRender() {
       document.getElementById('status-banner').textContent = 'Učitavanje...';
@@ -113,10 +107,10 @@
         if (xhr.status === 200) {
           try {
             var data = JSON.parse(xhr.responseText);
-            updateLegend(data.items);
-            renderBoard(data);
+            buildLegend(data.items);
+            renderBoard(data.items);
             document.getElementById('status-banner').textContent =
-              'Učitano ' + (data.items ? data.items.length : 0) + ' proizvoda.';
+              'Učitano ' + data.items.length + ' proizvoda.';
           } catch (e) {
             document.getElementById('status-banner').textContent = 'Greška parsiranja';
           }
@@ -130,115 +124,82 @@
       xhr.send();
     }
 
-    function updateLegend(items) {
-      var counts = {};
+    function buildLegend(items) {
+      var counts = {'Sve': items.length};
       items.forEach(function(item) {
-        var prod = item.proizvodnja || 'Nepoznato';
-        counts[prod] = (counts[prod] || 0) + 1;
+        var p = item.proizvodnja || 'Nepoznato';
+        counts[p] = (counts[p] || 0) + 1;
       });
       var legend = document.getElementById('legend');
       legend.innerHTML = '';
-      for (var prod in counts) {
-        var color = colorFromString(prod);
+      ['Sve'].concat(Object.keys(counts).filter(function(k){return k!=='Sve'})).forEach(function(prod) {
         var el = document.createElement('div');
-        el.className = 'legend-item';
+        el.className = 'legend-item' + (currentFilter===prod ? ' active' : '');
+        var color = prod==='Sve' ? '#000' : colorFromString(prod);
         el.style.borderColor = color;
         el.innerHTML = '<div class="legend-color" style="background:' + color + '"></div>' +
                        prod + ' (' + counts[prod] + ')';
+        el.onclick = function() { currentFilter = prod; fetchAndRender(); };
         legend.appendChild(el);
-      }
+      });
     }
 
-    function renderBoard(data) {
+    function renderBoard(items) {
       var statuses = ['Proizvodnja','Vez','Pakovanje','Magacin'];
-      var counts = {}, totalIskrojeno = {}, slikanCount = {}, breakdown = {}, placed = {};
       statuses.forEach(function(s) {
-        counts[s] = 0; totalIskrojeno[s] = 0; slikanCount[s] = 0; breakdown[s] = {};
         document.querySelector('[data-status="'+s+'"] .cards').innerHTML = '';
-        document.getElementById('count-'+s).textContent = '';
-        document.getElementById('summary-'+s).textContent = '';
-        document.getElementById('breakdown-'+s).textContent = '';
       });
-      data.items.forEach(function(item) {
-        var status = (item.status && item.status.trim()) ? item.status.trim() : '';
-        if (statuses.indexOf(status) < 0) return;
-        if (placed[item.product_code]) return;
-        placed[item.product_code] = true;
-        counts[status]++;
-        totalIskrojeno[status] += Number(item.iskrojeno) || 0;
-        if (item.slikan) slikanCount[status]++;
-        var prod = item.proizvodnja || 'Nepoznato';
-        breakdown[status][prod] = (breakdown[status][prod]||0) + (Number(item.iskrojeno)||0);
-
-        var card = document.createElement('div');
-        card.className = 'card';
+      items.forEach(function(item) {
+        if (currentFilter !== 'Sve' && item.proizvodnja !== currentFilter) return;
+        var status = item.status && item.status.trim();
+        if (!statuses.includes(status)) return;
+        var col = document.querySelector('[data-status="'+status+'"] .cards');
+        var card = document.createElement('div'); card.className = 'card';
         if (item.proizvodnja) card.style.background = colorFromString(item.proizvodnja);
         if (status==='Magacin') card.classList.add('done');
         if (item.alert) card.classList.add('urgent');
-
-        var nameEl = document.createElement('div');
-        var icon = item.slikan ? '📷' : '🚫📷';
         var days = item.days_since_publish || 0;
-        nameEl.innerHTML = icon + ' <strong>' + item.name + '</strong>' +
-                           '<span class="small">' + days + 'd</span>';
-        card.appendChild(nameEl);
-
+        card.innerHTML = (item.slikan?'📷':'🚫📷')+' <strong>'+item.name+'</strong><span class="small">'+days+'d</span>';
         card.onclick = function() { showModal(item); };
-        document.querySelector('[data-status="'+status+'"] .cards').appendChild(card);
+        col.appendChild(card);
+      });
+      statuses.forEach(function(s) {
+        var count = document.querySelector('[data-status="'+s+'"] .cards').children.length;
+        document.getElementById('count-'+s).textContent = '('+count+')';
       });
       adjustScale();
-      statuses.forEach(function(s) {
-        document.getElementById('count-'+s).textContent = '(' + counts[s] + ')';
-        document.getElementById('summary-'+s).textContent =
-          'Ukupno iskrojeno: ' + totalIskrojeno[s] + ', Slikano: ' + slikanCount[s];
-        var parts = [];
-        for (var p in breakdown[s]) parts.push(p + ': ' + breakdown[s][p]);
-        document.getElementById('breakdown-'+s).textContent = parts.join(' • ');
-      });
     }
 
     function colorFromString(str) {
-      var hash = 0;
-      for (var i = 0; i < str.length; i++) {
-        hash = str.charCodeAt(i) + ((hash << 5) - hash);
-        hash &= hash;
-      }
-      return 'hsl(' + (Math.abs(hash) % 360) + ',55%,85%)';
+      var hash=0; for(var i=0;i<str.length;i++){hash=str.charCodeAt(i)+((hash<<5)-hash); hash&=hash;}
+      return 'hsl('+(Math.abs(hash)%360)+',55%,85%)';
     }
 
     function adjustScale() {
-      var wrapper = document.querySelector('.board-wrapper'), board = document.getElementById('board');
-      var avail = wrapper.clientHeight, need = 0;
-      document.querySelectorAll('.column').forEach(function(c) {
-        if (c.scrollHeight > need) need = c.scrollHeight;
-      });
-      board.style.transform = 'scale(' + Math.min(1, avail / need) + ')';
+      var wrapper=document.querySelector('.board-wrapper'), board=document.getElementById('board');
+      var avail=wrapper.clientHeight, need=0;
+      document.querySelectorAll('.column').forEach(function(c){if(c.scrollHeight>need) need=c.scrollHeight;});
+      board.style.transform = 'scale('+Math.min(1,avail/need)+')';
     }
 
     function showModal(item) {
-      var m = document.getElementById('modal');
-      m.style.display = 'block';
-      m.innerHTML = '<div class="modal">' +
-        '<div class="modal-content">' +
+      var m=document.getElementById('modal'); m.style.display='block';
+      m.innerHTML = '<div class="modal"><div class="modal-content">' +
         '<div class="close" onclick="hideModal()">✕</div>' +
-        '<h3>' + item.name + '</h3>' +
-        '<div><strong>Šifra:</strong> ' + item.product_code + '</div>' +
-        '<div><strong>Status:</strong> ' + item.status + '</div>' +
-        '<div><strong>Proizvodnja:</strong> ' + item.proizvodnja + '</div>' +
-        '<div><strong>Dobavljač:</strong> ' + item.dobavljac + '</div>' +
-        '<div><strong>Iskrojeno:</strong> ' + item.iskrojeno + '</div>' +
-        '<div><strong>Jedin. cena:</strong> ' + item.unit_price.toFixed(2) + '</div>' +
-        '<div><strong>Ukupno:</strong> ' + item.total_price.toFixed(2) + '</div>' +
-        '<div><strong>Datum objave:</strong> ' + (item.datum_objave||'-') + '</div>' +
-        '<div><strong>Days since publish:</strong> ' + (item.days_since_publish||0) + 'd</div>' +
-        '<div><strong>Slikano:</strong> ' + (item.slikan?'Da':'Ne') + '</div>' +
+        '<h3>'+item.name+'</h3>' +
+        '<div><strong>Šifra:</strong> '+item.product_code+'</div>' +
+        '<div><strong>Status:</strong> '+item.status+'</div>' +
+        '<div><strong>Proizvodnja:</strong> '+item.proizvodnja+'</div>' +
+        '<div><strong>Dobavljač:</strong> '+item.dobavljac+'</div>' +
+        '<div><strong>Iskrojeno:</strong> '+item.iskrojeno+'</div>' +
+        '<div><strong>Jedin. cena:</strong> '+item.unit_price.toFixed(2)+'</div>' +
+        '<div><strong>Ukupno:</strong> '+item.total_price.toFixed(2)+'</div>' +
+        '<div><strong>Datum objave:</strong> '+(item.datum_objave||'-')+'</div>' +
+        '<div><strong>Days since publish:</strong> '+(item.days_since_publish||0)+'d</div>' +
+        '<div><strong>Slikano:</strong> '+(item.slikan?'Da':'Ne')+'</div>' +
         '</div></div>';
     }
-    function hideModal() {
-      var m = document.getElementById('modal');
-      m.innerHTML = '';
-      m.style.display = 'none';
-    }
+    function hideModal() { var m=document.getElementById('modal'); m.innerHTML=''; m.style.display='none'; }
 
     document.getElementById('reloadBtn').onclick = fetchAndRender;
     window.onresize = adjustScale;
