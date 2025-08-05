@@ -16,18 +16,20 @@
     .legend-item { display:flex; align-items:center; padding:4px 8px; border-radius:4px; background:#fff; border:2px solid; font-size:0.9rem; cursor:pointer; }
     .legend-item.active { box-shadow:0 0 0 2px #000 inset; }
     .legend-color { width:12px; height:12px; border-radius:2px; margin-right:6px; }
-    .board-wrapper { width:100%; height: calc(100vh - 260px); overflow:hidden; }
+    .filter-info { margin:8px 0; font-size:0.9rem; background:#fff; padding:8px; border-radius:4px; box-shadow:0 1px 3px rgba(0,0,0,0.1); display:none; }
+    .board-wrapper { width:100%; height: calc(100vh - 320px); overflow:hidden; }
     .board { display: flex; gap:8px; transform-origin: top left; }
     .column { flex:1; background:#e8eef5; border-radius:6px; display:flex; flex-direction:column; padding:6px; }
-    .col-header { font-weight: bold; margin-bottom:4px; flex:0 0 auto; font-size:0.9rem; }
+    .col-header { font-weight: bold; margin-bottom:4px; flex:0 0 auto; font-size:0.9rem; cursor:pointer; }
+    .col-header:hover { background:rgba(0,0,0,0.05); }
     .col-header-top { display:flex; justify-content: space-between; align-items: baseline; }
     .cards { flex:1; display:grid; grid-template-columns:1fr 1fr; gap:6px; }
     .card { background:#fff; border-radius:6px; padding:6px; box-shadow:0 1px 3px rgba(0,0,0,0.1); position: relative; cursor:pointer; color:#1f2937; font-size:0.85rem; display:flex; align-items:center; justify-content:center; height:40px; }
     .small { font-size:0.75rem; color:#222; margin-left:4px; }
     .urgent { outline:2px solid #ff9f1a; }
     .done { opacity:0.8; }
-    .modal { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:10; }
-    .modal-content { background:#fff; border-radius:6px; padding:16px; width:90%; max-width:600px; position: relative; box-shadow:0 8px 20px rgba(0,0,0,0.1); font-size:0.85rem; }
+    .modal, .status-modal { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:10; }
+    .modal-content, .status-content { background:#fff; border-radius:6px; padding:16px; width:90%; max-width:600px; position: relative; box-shadow:0 8px 20px rgba(0,0,0,0.1); font-size:0.85rem; }
     .close { position:absolute; top:8px; right:8px; cursor:pointer; font-size:1.2rem; }
   </style>
 </head>
@@ -40,64 +42,56 @@
       <div class="legend" id="legend"></div>
     </div>
   </div>
+
+  <div id="filterInfo" class="filter-info"></div>
+
   <div class="board-wrapper">
     <div class="board" id="board">
-      <!-- Proizvodnja -->
       <div class="column" data-status="Proizvodnja">
-        <div class="col-header">
+        <div class="col-header" onclick="showStatusInfo('Proizvodnja')">
           <div class="col-header-top">
             <div>Proizvodnja</div>
             <div class="column-count" id="count-Proizvodnja"></div>
           </div>
-          <div class="summary" id="summary-Proizvodnja"></div>
-          <div class="breakdown" id="breakdown-Proizvodnja"></div>
         </div>
         <div class="cards"></div>
       </div>
-      <!-- Vez -->
       <div class="column" data-status="Vez">
-        <div class="col-header">
+        <div class="col-header" onclick="showStatusInfo('Vez')">
           <div class="col-header-top">
             <div>Vez</div>
             <div class="column-count" id="count-Vez"></div>
           </div>
-          <div class="summary" id="summary-Vez"></div>
-          <div class="breakdown" id="breakdown-Vez"></div>
         </div>
         <div class="cards"></div>
       </div>
-      <!-- Pakovanje -->
       <div class="column" data-status="Pakovanje">
-        <div class="col-header">
+        <div class="col-header" onclick="showStatusInfo('Pakovanje')">
           <div class="col-header-top">
             <div>Pakovanje</div>
             <div class="column-count" id="count-Pakovanje"></div>
           </div>
-          <div class="summary" id="summary-Pakovanje"></div>
-          <div class="breakdown" id="breakdown-Pakovanje"></div>
         </div>
         <div class="cards"></div>
       </div>
-      <!-- Magacin -->
       <div class="column" data-status="Magacin">
-        <div class="col-header">
+        <div class="col-header" onclick="showStatusInfo('Magacin')">
           <div class="col-header-top">
             <div>Magacin</div>
             <div class="column-count" id="count-Magacin"></div>
           </div>
-          <div class="summary" id="summary-Magacin"></div>
-          <div class="breakdown" id="breakdown-Magacin"></div>
         </div>
         <div class="cards"></div>
       </div>
     </div>
   </div>
 
-  <div id="modal" style="display:none;"></div>
+  <div id="modal" class="modal" style="display:none;"></div>
+  <div id="statusModal" class="status-modal" style="display:none;"></div>
 
   <script>
     var endpoint = "https://script.google.com/macros/s/AKfycbwhKEBafSBhrjNYc5oAosp6kRW4q0aInuTBt-tAZKdXARZskavi1qJdYWJRuLLRZnpTmw/exec";
-    var currentFilter = 'Sve';
+    var allItems = [];
 
     function fetchAndRender() {
       document.getElementById('status-banner').textContent = 'Učitavanje...';
@@ -105,15 +99,11 @@
       xhr.open('GET', endpoint + '?_=' + Date.now(), true);
       xhr.onload = function() {
         if (xhr.status === 200) {
-          try {
-            var data = JSON.parse(xhr.responseText);
-            buildLegend(data.items);
-            renderBoard(data.items);
-            document.getElementById('status-banner').textContent =
-              'Učitano ' + data.items.length + ' proizvoda.';
-          } catch (e) {
-            document.getElementById('status-banner').textContent = 'Greška parsiranja';
-          }
+          var data = JSON.parse(xhr.responseText);
+          allItems = data.items;
+          buildLegend(allItems);
+          renderBoard(allItems);
+          document.getElementById('status-banner').textContent = 'Učitano ' + allItems.length + ' proizvoda.';
         } else {
           document.getElementById('status-banner').textContent = 'Greška status: ' + xhr.status;
         }
@@ -126,87 +116,116 @@
 
     function buildLegend(items) {
       var counts = {'Sve': items.length};
-      items.forEach(function(item) {
-        var p = item.proizvodnja || 'Nepoznato';
-        counts[p] = (counts[p] || 0) + 1;
+      items.forEach(i => {
+        counts[i.proizvodnja] = (counts[i.proizvodnja]||0) + 1;
       });
       var legend = document.getElementById('legend');
       legend.innerHTML = '';
-      ['Sve'].concat(Object.keys(counts).filter(function(k){return k!=='Sve'})).forEach(function(prod) {
+      ['Sve'].concat(Object.keys(counts).filter(k=>k!=='Sve')).forEach(prod => {
         var el = document.createElement('div');
-        el.className = 'legend-item' + (currentFilter===prod ? ' active' : '');
+        el.className = 'legend-item' + (window.currentFilter===prod ? ' active' : '');
         var color = prod==='Sve' ? '#000' : colorFromString(prod);
         el.style.borderColor = color;
-        el.innerHTML = '<div class="legend-color" style="background:' + color + '"></div>' +
-                       prod + ' (' + counts[prod] + ')';
-        el.onclick = function() { currentFilter = prod; fetchAndRender(); };
+        el.innerHTML = '<div class="legend-color" style="background:'+color+'"></div>'+prod+' ('+counts[prod]+')';
+        el.onclick = ()=> {
+          window.currentFilter = prod;
+          document.getElementById('filterInfo').style.display = 'none';
+          renderBoard(allItems);
+        };
         legend.appendChild(el);
       });
     }
 
     function renderBoard(items) {
       var statuses = ['Proizvodnja','Vez','Pakovanje','Magacin'];
-      statuses.forEach(function(s) {
+      statuses.forEach(s=> {
         document.querySelector('[data-status="'+s+'"] .cards').innerHTML = '';
       });
-      items.forEach(function(item) {
-        if (currentFilter !== 'Sve' && item.proizvodnja !== currentFilter) return;
+      items.forEach(item => {
+        if (window.currentFilter && window.currentFilter!=='Sve' && item.proizvodnja!==window.currentFilter) return;
         var status = item.status && item.status.trim();
         if (!statuses.includes(status)) return;
-        var col = document.querySelector('[data-status="'+status+'"] .cards');
-        var card = document.createElement('div'); card.className = 'card';
-        if (item.proizvodnja) card.style.background = colorFromString(item.proizvodnja);
-        if (status==='Magacin') card.classList.add('done');
+        var card = document.createElement('div');
+        card.className = 'card';
+        card.style.background = colorFromString(item.proizvodnja);
         if (item.alert) card.classList.add('urgent');
-        var days = item.days_since_publish || 0;
-        card.innerHTML = (item.slikan?'📷':'🚫📷')+' <strong>'+item.name+'</strong><span class="small">'+days+'d</span>';
-        card.onclick = function() { showModal(item); };
-        col.appendChild(card);
+        if (status==='Magacin') card.classList.add('done');
+        card.innerHTML = (item.slikan?'📷':'🚫📷')+' <strong>'+item.name+'</strong><span class="small">'+item.days_since_publish+'d</span>';
+        card.onclick = ()=> showModal(item);
+        document.querySelector('[data-status="'+status+'"] .cards').appendChild(card);
       });
-      statuses.forEach(function(s) {
-        var count = document.querySelector('[data-status="'+s+'"] .cards').children.length;
-        document.getElementById('count-'+s).textContent = '('+count+')';
+      statuses.forEach(s=>{
+        document.getElementById('count-'+s).textContent = '(' + document.querySelectorAll('[data-status="'+s+'"] .card').length + ')';
       });
       adjustScale();
     }
 
-    function colorFromString(str) {
-      var hash=0; for(var i=0;i<str.length;i++){hash=str.charCodeAt(i)+((hash<<5)-hash); hash&=hash;}
-      return 'hsl('+(Math.abs(hash)%360)+',55%,85%)';
+    function showStatusInfo(status) {
+      var items = allItems.filter(i => i.status===status);
+      if (!items.length) return;
+      var total = items.length;
+      var isk = items.reduce((a,i) => a + i.iskrojeno, 0);
+      var sl = items.filter(i => i.slikan).length;
+      var totalValue = items.reduce((a,i) => a + i.total_price, 0);
+      var k = Math.round(totalValue/1000) + 'k';
+      var modal = document.getElementById('statusModal');
+      modal.innerHTML = '<div class="status-content">' +
+        '<div class="close" onclick="hideStatus()">✕</div>' +
+        '<h3>'+status+' – Statistika</h3>' +
+        '<p>Ukupno artikala: '+total+'</p>' +
+        '<p>Ukupno iskrojeno: '+isk+'</p>' +
+        '<p>Slikano: '+sl+'</p>' +
+        '<p>Ukupna vrednost: '+k+'</p>' +
+      '</div>';
+      modal.style.display = 'flex';
     }
 
-    function adjustScale() {
-      var wrapper=document.querySelector('.board-wrapper'), board=document.getElementById('board');
-      var avail=wrapper.clientHeight, need=0;
-      document.querySelectorAll('.column').forEach(function(c){if(c.scrollHeight>need) need=c.scrollHeight;});
-      board.style.transform = 'scale('+Math.min(1,avail/need)+')';
+    function hideStatus() {
+      document.getElementById('statusModal').style.display = 'none';
     }
 
     function showModal(item) {
-      var m=document.getElementById('modal'); m.style.display='block';
-      m.innerHTML = '<div class="modal"><div class="modal-content">' +
+      var m = document.getElementById('modal');
+      m.innerHTML = '<div class="modal-content">' +
         '<div class="close" onclick="hideModal()">✕</div>' +
         '<h3>'+item.name+'</h3>' +
-        '<div><strong>Šifra:</strong> '+item.product_code+'</div>' +
-        '<div><strong>Status:</strong> '+item.status+'</div>' +
-        '<div><strong>Proizvodnja:</strong> '+item.proizvodnja+'</div>' +
-        '<div><strong>Dobavljač:</strong> '+item.dobavljac+'</div>' +
-        '<div><strong>Iskrojeno:</strong> '+item.iskrojeno+'</div>' +
-        '<div><strong>Jedin. cena:</strong> '+item.unit_price.toFixed(2)+'</div>' +
-        '<div><strong>Ukupno:</strong> '+item.total_price.toFixed(2)+'</div>' +
-        '<div><strong>Datum objave:</strong> '+(item.datum_objave||'-')+'</div>' +
-        '<div><strong>Days since publish:</strong> '+(item.days_since_publish||0)+'d</div>' +
-        '<div><strong>Slikano:</strong> '+(item.slikan?'Da':'Ne')+'</div>' +
-        '</div></div>';
+        '<p><strong>Šifra:</strong> '+item.product_code+'</p>' +
+        '<p><strong>Status:</strong> '+item.status+'</p>' +
+        '<p><strong>Proizvodnja:</strong> '+item.proizvodnja+'</p>' +
+        '<p><strong>Dobavljač:</strong> '+item.dobavljac+'</p>' +
+        '<p><strong>Iskrojeno:</strong> '+item.iskrojeno+'</p>' +
+        '<p><strong>Ukupno:</strong> '+item.total_price.toFixed(2)+'</p>' +
+        '<p><strong>Datum objave:</strong> '+item.datum_objave+'</p>' +
+        '<p><strong>Slikano:</strong> '+(item.slikan?'Da':'Ne')+'</p>' +
+      '</div>';
+      m.style.display = 'flex';
     }
-    function hideModal() { var m=document.getElementById('modal'); m.innerHTML=''; m.style.display='none'; }
+
+    function hideModal() {
+      document.getElementById('modal').style.display = 'none';
+    }
+
+    function colorFromString(str) {
+      var h=0;
+      for(var i=0;i<str.length;i++){ h = str.charCodeAt(i) + ((h<<5)-h); h&=h; }
+      return 'hsl(' + (Math.abs(h)%360) + ',55%,85%)';
+    }
+
+    function adjustScale() {
+      var w = document.querySelector('.board-wrapper'),
+          b = document.getElementById('board'),
+          avail = w.clientHeight, need = 0;
+      document.querySelectorAll('.column').forEach(c => {
+        if (c.scrollHeight > need) need = c.scrollHeight;
+      });
+      b.style.transform = 'scale(' + Math.min(1, avail/need) + ')';
+    }
 
     document.getElementById('reloadBtn').onclick = fetchAndRender;
     window.onresize = adjustScale;
-
-    // initial load
+    window.currentFilter = 'Sve';
     fetchAndRender();
-    setInterval(fetchAndRender, 10 * 60 * 1000);
+    setInterval(fetchAndRender, 600000);
   </script>
 </body>
 </html>
