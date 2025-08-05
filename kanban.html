@@ -5,87 +5,91 @@
   <title>Kanban proizvodnje</title>
   <meta http-equiv="refresh" content="600">
   <style>
+    html { font-size: 14px; } /* smanjen osnovni font */
     body { font-family: system-ui,-apple-system,BlinkMacSystemFont,sans-serif; margin:0; padding:10px; background:#f0f2f5; }
-    h2 { margin-top:0; }
-    .board { display: flex; gap:10px; }
-    .column { flex:1; background:#e8eef5; border-radius:8px; padding:10px; max-height: 90vh; overflow:auto; }
-    .col-header { font-weight: bold; margin-bottom:6px; display:flex; flex-direction: column; gap:4px; }
+    h2 { margin-top:0; font-size:1.5rem; }
+    .status-banner { padding:6px 10px; margin-bottom:8px; border-radius:6px; background:#e6f7ff; border:1px solid #40a9ff; font-size:1rem; }
+    .board-wrapper { width:100%; height: calc(100vh - 80px); overflow:hidden; }
+    .board { display: flex; gap:8px; transform-origin: top left; }
+    .column { flex:1; background:#e8eef5; border-radius:6px; display:flex; flex-direction:column; padding:6px; }
+    .col-header { font-weight: bold; margin-bottom:4px; flex:0 0 auto; font-size:0.9rem; }
     .col-header-top { display:flex; justify-content: space-between; align-items: baseline; }
-    .card { background:#fff; border-radius:6px; padding:10px; margin-bottom:10px; box-shadow:0 2px 6px rgba(0,0,0,0.08); position: relative; cursor:pointer; color:#1f2937; }
-    .alert { position:absolute; top:6px; right:6px; background:#ff4d4f; color:#fff; padding:4px 8px; border-radius:50%; font-weight:bold; }
-    .small { font-size:12px; color:#222; margin-top:2px; }
+    .cards { flex:1; }
+    .card { background:#fff; border-radius:6px; padding:6px; margin-bottom:6px; box-shadow:0 1px 3px rgba(0,0,0,0.1); position: relative; cursor:pointer; color:#1f2937; font-size:0.85rem; }
+    .alert { position:absolute; top:4px; right:4px; background:#ff4d4f; color:#fff; padding:2px 6px; border-radius:50%; font-weight:bold; font-size:0.75rem; }
+    .small { font-size:0.75rem; color:#222; margin-top:2px; }
+    .proizvodnja-label { display:inline-block; padding:2px 6px; border-radius:12px; font-size:0.75rem; background:rgba(255,255,255,0.6); margin-top:4px; }
+    .slikano-badge { position:absolute; top:4px; left:4px; display:flex; align-items:center; gap:4px; background:rgba(255,255,255,0.9); padding:2px 6px; border-radius:999px; font-size:0.75rem; font-weight:600; }
+    .slikano-dot { width:8px; height:8px; border-radius:50%; background:#28a745; display:inline-block; margin-right:4px; }
+    .summary { font-size:0.8rem; color:#555; }
+    .breakdown { font-size:0.75rem; margin-top:4px; color:#333; }
     .modal { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:10; }
-    .modal-content { background:#fff; border-radius:8px; padding:20px; width:90%; max-width:700px; position: relative; box-shadow:0 10px 30px rgba(0,0,0,0.15); }
-    .close { position:absolute; top:12px; right:12px; cursor:pointer; font-size:18px; }
-    .urgent { outline: 3px solid #ff9f1a; }
+    .modal-content { background:#fff; border-radius:6px; padding:16px; width:90%; max-width:600px; position: relative; box-shadow:0 8px 20px rgba(0,0,0,0.1); font-size:0.85rem; }
+    .close { position:absolute; top:8px; right:8px; cursor:pointer; font-size:1.2rem; }
+    .urgent { outline: 2px solid #ff9f1a; }
     .done { opacity:0.8; }
-    .column-count { font-size:12px; color:#333; }
-    .status-banner { padding:6px 10px; margin-bottom:8px; border-radius:6px; background:#e6f7ff; border:1px solid #40a9ff; font-size:14px; }
-    .proizvodnja-label { display:inline-block; padding:2px 8px; border-radius:12px; font-size:11px; background:rgba(255,255,255,0.6); margin-top:4px; }
-    .slikano-badge { position:absolute; top:6px; left:6px; display:flex; align-items:center; gap:4px; background:rgba(255,255,255,0.9); padding:4px 8px; border-radius:999px; font-size:11px; font-weight:600; }
-    .slikano-dot { width:10px; height:10px; border-radius:50%; background:#28a745; display:inline-block; margin-right:4px; }
-    .summary { font-size:12px; color:#555; }
-    .breakdown { font-size:11px; margin-top:4px; color:#333; }
   </style>
 </head>
 <body>
   <h2>Kanban proizvodnje</h2>
   <div class="status-banner" id="status-banner">Učitavanje...</div>
-  <div class="board" id="board">
-    <div class="column" data-status="Proizvodnja">
-      <div class="col-header">
-        <div class="col-header-top">
-          <div>Proizvodnja</div>
-          <div class="column-count" id="count-Proizvodnja"></div>
+  <div class="board-wrapper">
+    <div class="board" id="board">
+      <div class="column" data-status="Proizvodnja">
+        <div class="col-header">
+          <div class="col-header-top">
+            <div>Proizvodnja</div>
+            <div class="column-count" id="count-Proizvodnja"></div>
+          </div>
+          <div class="summary" id="summary-Proizvodnja"></div>
+          <div class="breakdown" id="breakdown-Proizvodnja"></div>
         </div>
-        <div class="summary" id="summary-Proizvodnja"></div>
-        <div class="breakdown" id="breakdown-Proizvodnja"></div>
+        <div class="cards"></div>
       </div>
-      <div class="cards"></div>
-    </div>
-    <div class="column" data-status="Vez">
-      <div class="col-header">
-        <div class="col-header-top">
-          <div>Vez</div>
-          <div class="column-count" id="count-Vez"></div>
+      <div class="column" data-status="Vez">
+        <div class="col-header">
+          <div class="col-header-top">
+            <div>Vez</div>
+            <div class="column-count" id="count-Vez"></div>
+          </div>
+          <div class="summary" id="summary-Vez"></div>
+          <div class="breakdown" id="breakdown-Vez"></div>
         </div>
-        <div class="summary" id="summary-Vez"></div>
-        <div class="breakdown" id="breakdown-Vez"></div>
+        <div class="cards"></div>
       </div>
-      <div class="cards"></div>
-    </div>
-    <div class="column" data-status="Pakovanje">
-      <div class="col-header">
-        <div class="col-header-top">
-          <div>Pakovanje</div>
-          <div class="column-count" id="count-Pakovanje"></div>
+      <div class="column" data-status="Pakovanje">
+        <div class="col-header">
+          <div class="col-header-top">
+            <div>Pakovanje</div>
+            <div class="column-count" id="count-Pakovanje"></div>
+          </div>
+          <div class="summary" id="summary-Pakovanje"></div>
+          <div class="breakdown" id="breakdown-Pakovanje"></div>
         </div>
-        <div class="summary" id="summary-Pakovanje"></div>
-        <div class="breakdown" id="breakdown-Pakovanje"></div>
+        <div class="cards"></div>
       </div>
-      <div class="cards"></div>
-    </div>
-    <div class="column" data-status="Magacin">
-      <div class="col-header">
-        <div class="col-header-top">
-          <div>Magacin</div>
-          <div class="column-count" id="count-Magacin"></div>
+      <div class="column" data-status="Magacin">
+        <div class="col-header">
+          <div class="col-header-top">
+            <div>Magacin</div>
+            <div class="column-count" id="count-Magacin"></div>
+          </div>
+          <div class="summary" id="summary-Magacin"></div>
+          <div class="breakdown" id="breakdown-Magacin"></div>
         </div>
-        <div class="summary" id="summary-Magacin"></div>
-        <div class="breakdown" id="breakdown-Magacin"></div>
+        <div class="cards"></div>
       </div>
-      <div class="cards"></div>
-    </div>
-    <div class="column" data-status="Nedefinisano">
-      <div class="col-header">
-        <div class="col-header-top">
-          <div>Nedefinisano</div>
-          <div class="column-count" id="count-Nedefinisano"></div>
+      <div class="column" data-status="Nedefinisano">
+        <div class="col-header">
+          <div class="col-header-top">
+            <div>Nedefinisano</div>
+            <div class="column-count" id="count-Nedefinisano"></div>
+          </div>
+          <div class="summary" id="summary-Nedefinisano"></div>
+          <div class="breakdown" id="breakdown-Nedefinisano"></div>
         </div>
-        <div class="summary" id="summary-Nedefinisano"></div>
-        <div class="breakdown" id="breakdown-Nedefinisano"></div>
+        <div class="cards"></div>
       </div>
-      <div class="cards"></div>
     </div>
   </div>
 
@@ -98,7 +102,7 @@
       let hash = 0;
       for (let i = 0; i < str.length; i++) {
         hash = str.charCodeAt(i) + ((hash << 5) - hash);
-        hash = hash & hash;
+        hash &= hash;
       }
       const h = Math.abs(hash) % 360;
       return `hsl(${h}, 55%, 85%)`;
@@ -117,59 +121,34 @@
         const counts = { Proizvodnja:0, Vez:0, Pakovanje:0, Magacin:0, Nedefinisano:0 };
         const totalIskrojeno = { Proizvodnja:0, Vez:0, Pakovanje:0, Magacin:0, Nedefinisano:0 };
         const slikanCount = { Proizvodnja:0, Vez:0, Pakovanje:0, Magacin:0, Nedefinisano:0 };
-        const breakdown = {
-          Proizvodnja: {},
-          Vez: {},
-          Pakovanje: {},
-          Magacin: {},
-          Nedefinisano: {}
-        };
+        const breakdown = { Proizvodnja:{}, Vez:{}, Pakovanje:{}, Magacin:{}, Nedefinisano:{} };
         const placed = new Set();
 
-        // reset
         statuses.forEach(s => {
-          const col = document.querySelector(`[data-status="${s}"] .cards`);
-          if (col) col.innerHTML = '';
-          const cnt = document.getElementById('count-' + s);
-          if (cnt) cnt.textContent = '';
-          const sumEl = document.getElementById('summary-' + s);
-          if (sumEl) sumEl.textContent = '';
-          const brEl = document.getElementById('breakdown-' + s);
-          if (brEl) brEl.textContent = '';
-        });
-
-        data.items.sort((a,b)=>{
-          if (a.alert && !b.alert) return -1;
-          if (b.alert && !a.alert) return 1;
-          return 0;
+          document.querySelector(`[data-status="${s}"] .cards`).innerHTML = '';
+          document.getElementById('count-'+s).textContent = '';
+          document.getElementById('summary-'+s).textContent = '';
+          document.getElementById('breakdown-'+s).textContent = '';
         });
 
         data.items.forEach(item => {
-          const statusRaw = item.status && item.status.trim() ? item.status : 'Nedefinisano';
+          const statusRaw = item.status?.trim() || 'Nedefinisano';
           const status = statuses.includes(statusRaw) ? statusRaw : 'Nedefinisano';
           if (placed.has(item.product_code)) return;
           placed.add(item.product_code);
           counts[status]++;
           totalIskrojeno[status] += Number(item.iskrojeno) || 0;
           if (item.slikan) slikanCount[status]++;
-
-          // breakdown po proizvodnji (iskrojeno)
           const prod = item.proizvodnja || 'Nepoznato';
-          if (!breakdown[status][prod]) breakdown[status][prod] = 0;
-          breakdown[status][prod] += Number(item.iskrojeno) || 0;
+          breakdown[status][prod] = (breakdown[status][prod]||0) + (Number(item.iskrojeno)||0);
 
           const colWrapper = document.querySelector(`[data-status="${status}"] .cards`);
-          if (!colWrapper) return;
-
           const card = document.createElement('div');
           card.className = 'card';
-          if (item.proizvodnja) {
-            card.style.background = colorFromString(item.proizvodnja);
-          }
+          if (item.proizvodnja) card.style.background = colorFromString(item.proizvodnja);
           if (item.alert) card.classList.add('urgent');
-          if (status === 'Magacin') card.classList.add('done');
+          if (status==='Magacin') card.classList.add('done');
 
-          // slikano badge za DA
           if (item.slikan) {
             const b = document.createElement('div');
             b.className = 'slikano-badge';
@@ -177,37 +156,30 @@
             card.appendChild(b);
           }
 
-          let inner = `<div><strong>${item.name}</strong></div>`;
-          inner += `<div class="small">Šifra: ${item.product_code}</div>`;
-          inner += `<div class="small">Količina iskrojeno: ${item.iskrojeno}</div>`;
-          inner += `<div class="small"><strong>Ukupno:</strong> ${item.total_price.toFixed(2)}</div>`;
-          inner += `<div class="small">Datum objave: ${item.datum_objave || '-'}</div>`;
-          inner += `<div class="small"><strong>Slikano:</strong> ${item.slikan ? 'DA' : 'NE'}</div>`;
-          if (item.proizvodnja) inner += `<div class="proizvodnja-label">${item.proizvodnja}</div>`;
-          if (item.dobavljac) inner += `<div class="small">Dobavljač: ${item.dobavljac}</div>`;
-          if (item.alert) inner += `<div class="alert" title="Objavljeno pre manje od 7 dana a nije u magacinu">!</div>`;
           const wrapper = document.createElement('div');
-          wrapper.innerHTML = inner;
+          wrapper.innerHTML = `
+            <div><strong>${item.name}</strong></div>
+            <div class="small">Šifra: ${item.product_code}</div>
+            <div class="small">Količina iskrojeno: ${item.iskrojeno}</div>
+            <div class="small"><strong>Ukupno:</strong> ${item.total_price.toFixed(2)}</div>
+            <div class="small">Datum objave: ${item.datum_objave||'-'}</div>
+            <div class="small"><strong>Slikano:</strong> ${item.slikan?'DA':'NE'}</div>
+            ${item.proizvodnja? `<div class="proizvodnja-label">${item.proizvodnja}</div>` : ''}
+            ${item.dobavljac? `<div class="small">Dobavljač: ${item.dobavljac}</div>` : ''}
+            ${item.alert? `<div class="alert" title="Objavljeno pre manje od 7 dana a nije u magacinu">!</div>` : ''}
+          `;
           card.appendChild(wrapper);
-
-          card.addEventListener('click', () => showModal(item));
           colWrapper.appendChild(card);
         });
 
-        // update headers
+        adjustScale();
+
         statuses.forEach(s => {
-          const cntEl = document.getElementById('count-' + s);
-          if (cntEl) cntEl.textContent = `(${counts[s]})`;
-          const sumEl = document.getElementById('summary-' + s);
-          if (sumEl) sumEl.textContent = `Ukupno iskrojeno: ${totalIskrojeno[s]}, Slikano: ${slikanCount[s]}`;
-          const brEl = document.getElementById('breakdown-' + s);
-          if (brEl) {
-            const parts = [];
-            for (const prod in breakdown[s]) {
-              parts.push(`${prod}: ${breakdown[s][prod]}`);
-            }
-            brEl.textContent = parts.join(' • ');
-          }
+          document.getElementById('count-'+s).textContent = `(${counts[s]})`;
+          document.getElementById('summary-'+s).textContent = `Ukupno iskrojeno: ${totalIskrojeno[s]}, Slikano: ${slikanCount[s]}`;
+          const parts = [];
+          for (const p in breakdown[s]) parts.push(`${p}: ${breakdown[s][p]}`);
+          document.getElementById('breakdown-'+s).textContent = parts.join(' • ');
         });
 
         document.getElementById('status-banner').textContent = `Učitano ${placed.size} proizvoda. Poslednje osveženje: ${new Date().toLocaleTimeString('sr-RS')}.`;
@@ -217,37 +189,19 @@
       }
     }
 
-    function showModal(item) {
-      const modal = document.getElementById('modal');
-      modal.style.display = 'block';
-      modal.innerHTML = `
-        <div class="modal">
-          <div class="modal-content">
-            <div class="close" onclick="hideModal()">✕</div>
-            <h3>${item.name}</h3>
-            <div><strong>Šifra:</strong> ${item.product_code}</div>
-            <div><strong>Status:</strong> ${item.status}</div>
-            <div><strong>Proizvodnja:</strong> ${item.proizvodnja}</div>
-            <div><strong>Dobavljač:</strong> ${item.dobavljac}</div>
-            <div><strong>Iskrojeno:</strong> ${item.iskrojeno}</div>
-            <div><strong>Jedin. cena:</strong> ${item.unit_price.toFixed(2)}</div>
-            <div><strong>Ukupno:</strong> ${item.total_price.toFixed(2)}</div>
-            <div><strong>Datum objave:</strong> ${item.datum_objave || '-'}</div>
-            <div><strong>Slikano:</strong> ${item.slikan ? 'Da' : 'Ne'}</div>
-            <div class="small">Raw image field: ${item.raw_image_field || '-'}</div>
-            <div class="small">Days since publish: ${item.days_since_publish !== null ? item.days_since_publish : '-'}</div>
-            <div class="small">Alert: ${item.alert ? 'DA' : 'NE'}</div>
-          </div>
-        </div>
-      `;
+    function adjustScale(){
+      const wrapper = document.querySelector('.board-wrapper');
+      const board = document.getElementById('board');
+      const availableH = wrapper.clientHeight;
+      let neededH = 0;
+      document.querySelectorAll('.column').forEach(col => {
+        neededH = Math.max(neededH, col.scrollHeight);
+      });
+      const scale = Math.min(1, availableH / neededH);
+      board.style.transform = `scale(${scale})`;
     }
 
-    function hideModal() {
-      const modal = document.getElementById('modal');
-      modal.style.display = 'none';
-      modal.innerHTML = '';
-    }
-
+    window.addEventListener('resize', adjustScale);
     fetchAndRender();
     setInterval(fetchAndRender, 10 * 60 * 1000);
   </script>
