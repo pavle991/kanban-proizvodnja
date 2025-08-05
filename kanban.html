@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+  <meta charset="utf-8" />
+  <title>Kanban proizvodnje</title>
+  <meta http-equiv="refresh" content="600">
+  <style>
+    body { font-family: system-ui,-apple-system,BlinkMacSystemFont,sans-serif; margin:0; padding:10px; background:#f0f2f5; }
+    h2 { margin-top:0; }
+    .board { display: flex; gap:10px; }
+    .column { flex:1; background:#e8eef5; border-radius:8px; padding:10px; max-height: 90vh; overflow:auto; }
+    .col-header { font-weight: bold; margin-bottom:6px; display:flex; flex-direction: column; gap:4px; }
+    .col-header-top { display:flex; justify-content: space-between; align-items: baseline; }
+    .card { background:#fff; border-radius:6px; padding:10px; margin-bottom:10px; box-shadow:0 2px 6px rgba(0,0,0,0.08); position: relative; cursor:pointer; color:#1f2937; }
+    .alert { position:absolute; top:6px; right:6px; background:#ff4d4f; color:#fff; padding:4px 8px; border-radius:50%; font-weight:bold; }
+    .small { font-size:12px; color:#222; margin-top:2px; }
+    .modal { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:10; }
+    .modal-content { background:#fff; border-radius:8px; padding:20px; width:90%; max-width:700px; position: relative; box-shadow:0 10px 30px rgba(0,0,0,0.15); }
+    .close { position:absolute; top:12px; right:12px; cursor:pointer; font-size:18px; }
+    .urgent { outline: 3px solid #ff9f1a; }
+    .done { opacity:0.8; }
+    .column-count { font-size:12px; color:#333; }
+    .status-banner { padding:6px 10px; margin-bottom:8px; border-radius:6px; background:#e6f7ff; border:1px solid #40a9ff; font-size:14px; }
+    .proizvodnja-label { display:inline-block; padding:2px 8px; border-radius:12px; font-size:11px; background:rgba(255,255,255,0.6); margin-top:4px; }
+    .slikano-badge { position:absolute; top:6px; left:6px; display:flex; align-items:center; gap:4px; background:rgba(255,255,255,0.9); padding:4px 8px; border-radius:999px; font-size:11px; font-weight:600; }
+    .slikano-dot { width:10px; height:10px; border-radius:50%; background:#28a745; display:inline-block; margin-right:4px; }
+    .summary { font-size:12px; color:#555; }
+    .breakdown { font-size:11px; margin-top:4px; color:#333; }
+  </style>
+</head>
+<body>
+  <h2>Kanban proizvodnje</h2>
+  <div class="status-banner" id="status-banner">Učitavanje...</div>
+  <div class="board" id="board">
+    <div class="column" data-status="Proizvodnja">
+      <div class="col-header">
+        <div class="col-header-top">
+          <div>Proizvodnja</div>
+          <div class="column-count" id="count-Proizvodnja"></div>
+        </div>
+        <div class="summary" id="summary-Proizvodnja"></div>
+        <div class="breakdown" id="breakdown-Proizvodnja"></div>
+      </div>
+      <div class="cards"></div>
+    </div>
+    <div class="column" data-status="Vez">
+      <div class="col-header">
+        <div class="col-header-top">
+          <div>Vez</div>
+          <div class="column-count" id="count-Vez"></div>
+        </div>
+        <div class="summary" id="summary-Vez"></div>
+        <div class="breakdown" id="breakdown-Vez"></div>
+      </div>
+      <div class="cards"></div>
+    </div>
+    <div class="column" data-status="Pakovanje">
+      <div class="col-header">
+        <div class="col-header-top">
+          <div>Pakovanje</div>
+          <div class="column-count" id="count-Pakovanje"></div>
+        </div>
+        <div class="summary" id="summary-Pakovanje"></div>
+        <div class="breakdown" id="breakdown-Pakovanje"></div>
+      </div>
+      <div class="cards"></div>
+    </div>
+    <div class="column" data-status="Magacin">
+      <div class="col-header">
+        <div class="col-header-top">
+          <div>Magacin</div>
+          <div class="column-count" id="count-Magacin"></div>
+        </div>
+        <div class="summary" id="summary-Magacin"></div>
+        <div class="breakdown" id="breakdown-Magacin"></div>
+      </div>
+      <div class="cards"></div>
+    </div>
+    <div class="column" data-status="Nedefinisano">
+      <div class="col-header">
+        <div class="col-header-top">
+          <div>Nedefinisano</div>
+          <div class="column-count" id="count-Nedefinisano"></div>
+        </div>
+        <div class="summary" id="summary-Nedefinisano"></div>
+        <div class="breakdown" id="breakdown-Nedefinisano"></div>
+      </div>
+      <div class="cards"></div>
+    </div>
+  </div>
+
+  <div id="modal" style="display:none;"></div>
+
+  <script>
+    const endpoint = "https://script.google.com/macros/s/AKfycbwhKEBafSBhrjNYc5oAosp6kRW4q0aInuTBt-tAZKdXARZskavi1qJdYWJRuLLRZnpTmw/exec";
+
+    function colorFromString(str) {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+        hash = hash & hash;
+      }
+      const h = Math.abs(hash) % 360;
+      return `hsl(${h}, 55%, 85%)`;
+    }
+
+    async function fetchAndRender() {
+      try {
+        const res = await fetch(endpoint + '?_=' + Date.now());
+        const data = await res.json();
+        if (!data.items) {
+          document.getElementById('status-banner').textContent = 'Greška: nema items polja u JSON-u';
+          return;
+        }
+
+        const statuses = ['Proizvodnja','Vez','Pakovanje','Magacin','Nedefinisano'];
+        const counts = { Proizvodnja:0, Vez:0, Pakovanje:0, Magacin:0, Nedefinisano:0 };
+        const totalIskrojeno = { Proizvodnja:0, Vez:0, Pakovanje:0, Magacin:0, Nedefinisano:0 };
+        const slikanCount = { Proizvodnja:0, Vez:0, Pakovanje:0, Magacin:0, Nedefinisano:0 };
+        const breakdown = {
+          Proizvodnja: {},
+          Vez: {},
+          Pakovanje: {},
+          Magacin: {},
+          Nedefinisano: {}
+        };
+        const placed = new Set();
+
+        // reset
+        statuses.forEach(s => {
+          const col = document.querySelector(`[data-status="${s}"] .cards`);
+          if (col) col.innerHTML = '';
+          const cnt = document.getElementById('count-' + s);
+          if (cnt) cnt.textContent = '';
+          const sumEl = document.getElementById('summary-' + s);
+          if (sumEl) sumEl.textContent = '';
+          const brEl = document.getElementById('breakdown-' + s);
+          if (brEl) brEl.textContent = '';
+        });
+
+        data.items.sort((a,b)=>{
+          if (a.alert && !b.alert) return -1;
+          if (b.alert && !a.alert) return 1;
+          return 0;
+        });
+
+        data.items.forEach(item => {
+          const statusRaw = item.status && item.status.trim() ? item.status : 'Nedefinisano';
+          const status = statuses.includes(statusRaw) ? statusRaw : 'Nedefinisano';
+          if (placed.has(item.product_code)) return;
+          placed.add(item.product_code);
+          counts[status]++;
+          totalIskrojeno[status] += Number(item.iskrojeno) || 0;
+          if (item.slikan) slikanCount[status]++;
+
+          // breakdown po proizvodnji (iskrojeno)
+          const prod = item.proizvodnja || 'Nepoznato';
+          if (!breakdown[status][prod]) breakdown[status][prod] = 0;
+          breakdown[status][prod] += Number(item.iskrojeno) || 0;
+
+          const colWrapper = document.querySelector(`[data-status="${status}"] .cards`);
+          if (!colWrapper) return;
+
+          const card = document.createElement('div');
+          card.className = 'card';
+          if (item.proizvodnja) {
+            card.style.background = colorFromString(item.proizvodnja);
+          }
+          if (item.alert) card.classList.add('urgent');
+          if (status === 'Magacin') card.classList.add('done');
+
+          // slikano badge za DA
+          if (item.slikan) {
+            const b = document.createElement('div');
+            b.className = 'slikano-badge';
+            b.innerHTML = `<span class="slikano-dot"></span> Slikano`;
+            card.appendChild(b);
+          }
+
+          let inner = `<div><strong>${item.name}</strong></div>`;
+          inner += `<div class="small">Šifra: ${item.product_code}</div>`;
+          inner += `<div class="small">Količina iskrojeno: ${item.iskrojeno}</div>`;
+          inner += `<div class="small"><strong>Ukupno:</strong> ${item.total_price.toFixed(2)}</div>`;
+          inner += `<div class="small">Datum objave: ${item.datum_objave || '-'}</div>`;
+          inner += `<div class="small"><strong>Slikano:</strong> ${item.slikan ? 'DA' : 'NE'}</div>`;
+          if (item.proizvodnja) inner += `<div class="proizvodnja-label">${item.proizvodnja}</div>`;
+          if (item.dobavljac) inner += `<div class="small">Dobavljač: ${item.dobavljac}</div>`;
+          if (item.alert) inner += `<div class="alert" title="Objavljeno pre manje od 7 dana a nije u magacinu">!</div>`;
+          const wrapper = document.createElement('div');
+          wrapper.innerHTML = inner;
+          card.appendChild(wrapper);
+
+          card.addEventListener('click', () => showModal(item));
+          colWrapper.appendChild(card);
+        });
+
+        // update headers
+        statuses.forEach(s => {
+          const cntEl = document.getElementById('count-' + s);
+          if (cntEl) cntEl.textContent = `(${counts[s]})`;
+          const sumEl = document.getElementById('summary-' + s);
+          if (sumEl) sumEl.textContent = `Ukupno iskrojeno: ${totalIskrojeno[s]}, Slikano: ${slikanCount[s]}`;
+          const brEl = document.getElementById('breakdown-' + s);
+          if (brEl) {
+            const parts = [];
+            for (const prod in breakdown[s]) {
+              parts.push(`${prod}: ${breakdown[s][prod]}`);
+            }
+            brEl.textContent = parts.join(' • ');
+          }
+        });
+
+        document.getElementById('status-banner').textContent = `Učitano ${placed.size} proizvoda. Poslednje osveženje: ${new Date().toLocaleTimeString('sr-RS')}.`;
+      } catch (err) {
+        console.error('Greška pri fetch-u:', err);
+        document.getElementById('status-banner').textContent = `Fetch error: ${err.message}`;
+      }
+    }
+
+    function showModal(item) {
+      const modal = document.getElementById('modal');
+      modal.style.display = 'block';
+      modal.innerHTML = `
+        <div class="modal">
+          <div class="modal-content">
+            <div class="close" onclick="hideModal()">✕</div>
+            <h3>${item.name}</h3>
+            <div><strong>Šifra:</strong> ${item.product_code}</div>
+            <div><strong>Status:</strong> ${item.status}</div>
+            <div><strong>Proizvodnja:</strong> ${item.proizvodnja}</div>
+            <div><strong>Dobavljač:</strong> ${item.dobavljac}</div>
+            <div><strong>Iskrojeno:</strong> ${item.iskrojeno}</div>
+            <div><strong>Jedin. cena:</strong> ${item.unit_price.toFixed(2)}</div>
+            <div><strong>Ukupno:</strong> ${item.total_price.toFixed(2)}</div>
+            <div><strong>Datum objave:</strong> ${item.datum_objave || '-'}</div>
+            <div><strong>Slikano:</strong> ${item.slikan ? 'Da' : 'Ne'}</div>
+            <div class="small">Raw image field: ${item.raw_image_field || '-'}</div>
+            <div class="small">Days since publish: ${item.days_since_publish !== null ? item.days_since_publish : '-'}</div>
+            <div class="small">Alert: ${item.alert ? 'DA' : 'NE'}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    function hideModal() {
+      const modal = document.getElementById('modal');
+      modal.style.display = 'none';
+      modal.innerHTML = '';
+    }
+
+    fetchAndRender();
+    setInterval(fetchAndRender, 10 * 60 * 1000);
+  </script>
+</body>
+</html>
