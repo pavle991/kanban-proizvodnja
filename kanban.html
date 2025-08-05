@@ -16,9 +16,9 @@
     .column { flex:1; background:#e8eef5; border-radius:6px; display:flex; flex-direction:column; padding:6px; }
     .col-header { font-weight: bold; margin-bottom:4px; flex:0 0 auto; font-size:0.9rem; }
     .col-header-top { display:flex; justify-content: space-between; align-items: baseline; }
-    .cards { flex:1; }
+    .cards { flex:1; display:grid; grid-template-columns:1fr 1fr; gap:6px; }
     .card {
-      background:#fff; border-radius:6px; padding:6px; margin-bottom:6px;
+      background:#fff; border-radius:6px; padding:6px; margin-bottom:0;
       box-shadow:0 1px 3px rgba(0,0,0,0.1); position: relative; cursor:pointer;
       color:#1f2937; font-size:0.85rem; display:flex; align-items:center;
       justify-content:center; height:40px;
@@ -41,11 +41,6 @@
     .close { position:absolute; top:8px; right:8px; cursor:pointer; font-size:1.2rem; }
     .urgent { outline: 2px solid #ff9f1a; }
     .done { opacity:0.8; }
-    #consoleLog {
-      background:#000; color:#0f0; font-family:monospace; padding:8px;
-      margin-top:8px; height:120px; overflow:auto; white-space:pre-wrap;
-      border-radius:4px; border:1px solid #333;
-    }
   </style>
 </head>
 <body>
@@ -56,6 +51,7 @@
   </div>
   <div class="board-wrapper">
     <div class="board" id="board">
+      <!-- Proizvodnja -->
       <div class="column" data-status="Proizvodnja">
         <div class="col-header">
           <div class="col-header-top">
@@ -67,6 +63,7 @@
         </div>
         <div class="cards"></div>
       </div>
+      <!-- Vez -->
       <div class="column" data-status="Vez">
         <div class="col-header">
           <div class="col-header-top">
@@ -78,6 +75,7 @@
         </div>
         <div class="cards"></div>
       </div>
+      <!-- Pakovanje -->
       <div class="column" data-status="Pakovanje">
         <div class="col-header">
           <div class="col-header-top">
@@ -89,6 +87,7 @@
         </div>
         <div class="cards"></div>
       </div>
+      <!-- Magacin -->
       <div class="column" data-status="Magacin">
         <div class="col-header">
           <div class="col-header-top">
@@ -100,81 +99,51 @@
         </div>
         <div class="cards"></div>
       </div>
-      <div class="column" data-status="Nedefinisano">
-        <div class="col-header">
-          <div class="col-header-top">
-            <div>Nedefinisano</div>
-            <div class="column-count" id="count-Nedefinisano"></div>
-          </div>
-          <div class="summary" id="summary-Nedefinisano"></div>
-          <div class="breakdown" id="breakdown-Nedefinisano"></div>
-        </div>
-        <div class="cards"></div>
-      </div>
     </div>
   </div>
 
-  <pre id="consoleLog">--- console log ---</pre>
   <div id="modal" style="display:none;"></div>
 
   <script>
     var endpoint = "https://script.google.com/macros/s/AKfycbwhKEBafSBhrjNYc5oAosp6kRW4q0aInuTBt-tAZKdXARZskavi1qJdYWJRuLLRZnpTmw/exec";
-    var logEl = document.getElementById('consoleLog');
-    function log(msg) {
-      logEl.textContent += "\n" + msg;
-      logEl.scrollTop = logEl.scrollHeight;
-    }
 
     function fetchAndRender() {
-      log('Starting fetch...');
       document.getElementById('status-banner').textContent = 'Učitavanje...';
-      try {
-        var xhr = new XMLHttpRequest();
-        xhr.open('GET', endpoint + '?_=' + Date.now(), true);
-        xhr.onload = function() {
-          log('XHR status: ' + xhr.status);
-          if (xhr.status === 200) {
-            try {
-              var data = JSON.parse(xhr.responseText);
-              log('Parsed items: ' + (data.items ? data.items.length : 0));
-              renderBoard(data);
-              document.getElementById('status-banner').textContent = 'Učitano ' + (data.items ? data.items.length : 0) + ' proizvoda.';
-            } catch (e) {
-              log('Parse error: ' + e.message);
-              document.getElementById('status-banner').textContent = 'Greška parsiranja';
-            }
-          } else {
-            log('Non-200 status: ' + xhr.status);
-            document.getElementById('status-banner').textContent = 'Greška status: ' + xhr.status;
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', endpoint + '?_=' + Date.now(), true);
+      xhr.onload = function() {
+        if (xhr.status === 200) {
+          try {
+            var data = JSON.parse(xhr.responseText);
+            renderBoard(data);
+            document.getElementById('status-banner').textContent = 
+              'Učitano ' + (data.items ? data.items.length : 0) + ' proizvoda.';
+          } catch (e) {
+            document.getElementById('status-banner').textContent = 'Greška parsiranja';
           }
-        };
-        xhr.onerror = function() {
-          log('XHR error');
-          document.getElementById('status-banner').textContent = 'Greška XHR';
-        };
-        xhr.send();
-      } catch (err) {
-        log('Exception: ' + err.message);
-      }
+        } else {
+          document.getElementById('status-banner').textContent = 'Greška status: ' + xhr.status;
+        }
+      };
+      xhr.onerror = function() {
+        document.getElementById('status-banner').textContent = 'Greška XHR';
+      };
+      xhr.send();
     }
 
     function renderBoard(data) {
-      var statuses = ['Proizvodnja','Vez','Pakovanje','Magacin','Nedefinisano'];
-      var counts = {}, totalIskrojeno = {}, slikanCount = {}, breakdown = {};
-      var placed = {};
+      var statuses = ['Proizvodnja','Vez','Pakovanje','Magacin'];
+      var counts = {}, totalIskrojeno = {}, slikanCount = {}, breakdown = {}, placed = {};
       statuses.forEach(function(s) {
-        counts[s] = 0;
-        totalIskrojeno[s] = 0;
-        slikanCount[s] = 0;
-        breakdown[s] = {};
+        counts[s] = 0; totalIskrojeno[s] = 0; slikanCount[s] = 0; breakdown[s] = {};
         document.querySelector('[data-status="'+s+'"] .cards').innerHTML = '';
         document.getElementById('count-'+s).textContent = '';
         document.getElementById('summary-'+s).textContent = '';
         document.getElementById('breakdown-'+s).textContent = '';
       });
       data.items.forEach(function(item) {
-        var status = (item.status && item.status.trim()) ? item.status.trim() : 'Nedefinisano';
-        if (!counts.hasOwnProperty(status)) status = 'Nedefinisano';
+        var status = item.status && item.status.trim() || '';
+        if (statuses.indexOf(status) < 0) return;
         if (placed[item.product_code]) return;
         placed[item.product_code] = true;
         counts[status]++;
@@ -186,13 +155,14 @@
         var card = document.createElement('div');
         card.className = 'card';
         if (item.proizvodnja) card.style.background = colorFromString(item.proizvodnja);
-        if (status === 'Magacin') card.classList.add('done');
+        if (status==='Magacin') card.classList.add('done');
         if (item.alert) card.classList.add('urgent');
 
         var nameEl = document.createElement('div');
         var icon = item.slikan ? '📷' : '🚫📷';
         var days = item.days_since_publish || 0;
-        nameEl.innerHTML = icon + ' <strong>' + item.name + '</strong><span class="small">' + days + 'd</span>';
+        nameEl.innerHTML = icon + ' <strong>' + item.name + '</strong>' +
+                           '<span class="small">' + days + 'd</span>';
         card.appendChild(nameEl);
 
         card.onclick = function() { showModal(item); };
@@ -200,10 +170,11 @@
       });
       adjustScale();
       statuses.forEach(function(s) {
-        document.getElementById('count-'+s).textContent = '('+counts[s]+')';
-        document.getElementById('summary-'+s).textContent = 'Ukupno iskrojeno: '+ totalIskrojeno[s] +', Slikano: '+ slikanCount[s];
+        document.getElementById('count-'+s).textContent = '(' + counts[s] + ')';
+        document.getElementById('summary-'+s).textContent = 
+          'Ukupno iskrojeno: ' + totalIskrojeno[s] + ', Slikano: ' + slikanCount[s];
         var parts = [];
-        for (var p in breakdown[s]) parts.push(p+': '+breakdown[s][p]);
+        for (var p in breakdown[s]) parts.push(p + ': ' + breakdown[s][p]);
         document.getElementById('breakdown-'+s).textContent = parts.join(' • ');
       });
     }
@@ -214,36 +185,36 @@
         hash = str.charCodeAt(i) + ((hash << 5) - hash);
         hash &= hash;
       }
-      var h = Math.abs(hash) % 360;
-      return 'hsl('+h+',55%,85%)';
+      return 'hsl(' + (Math.abs(hash) % 360) + ',55%,85%)';
     }
 
     function adjustScale() {
-      var wrapper = document.querySelector('.board-wrapper'),
-          board = document.getElementById('board');
+      var wrapper = document.querySelector('.board-wrapper'), board = document.getElementById('board');
       var avail = wrapper.clientHeight, need = 0;
-      document.querySelectorAll('.column').forEach(function(c){ if(c.scrollHeight>need) need=c.scrollHeight; });
-      board.style.transform = 'scale('+ Math.min(1, avail/need) +')';
+      document.querySelectorAll('.column').forEach(function(c) {
+        if (c.scrollHeight > need) need = c.scrollHeight;
+      });
+      board.style.transform = 'scale(' + Math.min(1, avail / need) + ')';
     }
 
     function showModal(item) {
       var m = document.getElementById('modal');
       m.style.display = 'block';
-      m.innerHTML = '<div class="modal">'+
-        '<div class="modal-content">'+
-        '<div class="close" onclick="hideModal()">✕</div>'+
-        '<h3>'+item.name+'</h3>'+
-        '<div><strong>Šifra:</strong> '+item.product_code+'</div>'+
-        '<div><strong>Status:</strong> '+item.status+'</div>'+
-        '<div><strong>Proizvodnja:</strong> '+item.proizvodnja+'</div>'+
-        '<div><strong>Dobavljač:</strong> '+item.dobavljac+'</div>'+
-        '<div><strong>Iskrojeno:</strong> '+item.iskrojeno+'</div>'+
-        '<div><strong>Jedin. cena:</strong> '+item.unit_price.toFixed(2)+
-        '</div><div><strong>Ukupno:</strong> '+item.total_price.toFixed(2)+
-        '</div><div><strong>Datum objave:</strong> '+(item.datum_objave||'-')+
-        '</div><div><strong>Days since publish:</strong> '+(item.days_since_publish||0)+'d'+
-        '</div><div><strong>Slikano:</strong> '+(item.slikan?'Da':'Ne')+
-        '</div></div></div>';
+      m.innerHTML = '<div class="modal">' +
+        '<div class="modal-content">' +
+        '<div class="close" onclick="hideModal()">✕</div>' +
+        '<h3>' + item.name + '</h3>' +
+        '<div><strong>Šifra:</strong> ' + item.product_code + '</div>' +
+        '<div><strong>Status:</strong> ' + item.status + '</div>' +
+        '<div><strong>Proizvodnja:</strong> ' + item.proizvodnja + '</div>' +
+        '<div><strong>Dobavljač:</strong> ' + item.dobavljac + '</div>' +
+        '<div><strong>Iskrojeno:</strong> ' + item.iskrojeno + '</div>' +
+        '<div><strong>Jedin. cena:</strong> ' + item.unit_price.toFixed(2) + '</div>' +
+        '<div><strong>Ukupno:</strong> ' + item.total_price.toFixed(2) + '</div>' +
+        '<div><strong>Datum objave:</strong> ' + (item.datum_objave || '-') + '</div>' +
+        '<div><strong>Days since publish:</strong> ' + (item.days_since_publish || 0) + 'd</div>' +
+        '<div><strong>Slikano:</strong> ' + (item.slikan ? 'Da' : 'Ne') + '</div>' +
+        '</div></div>';
     }
     function hideModal() {
       var m = document.getElementById('modal');
@@ -251,10 +222,7 @@
       m.style.display = 'none';
     }
 
-    document.getElementById('reloadBtn').onclick = function() {
-      logEl.textContent = '--- console log ---';
-      fetchAndRender();
-    };
+    document.getElementById('reloadBtn').onclick = fetchAndRender;
     window.onresize = adjustScale;
 
     // initial load
