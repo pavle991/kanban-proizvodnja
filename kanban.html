@@ -2,7 +2,7 @@
 <html lang="sr">
 <head>
   <meta charset="utf-8" />
-  <title>Kanban proizvodnje (JSONP verzija)</title>
+  <title>Kanban proizvodnje</title>
   <meta http-equiv="refresh" content="600">
   <style>
     html { font-size: 14px; }
@@ -43,7 +43,7 @@
 </head>
 <body>
   <h2>Kanban proizvodnje</h2>
-  <div class="status-banner" id="status-banner">Učitavanje…</div>
+  <div class="status-banner" id="status-banner">Učitavanje...</div>
   <div class="board-wrapper">
     <div class="board" id="board">
       <div class="column" data-status="Proizvodnja">
@@ -119,93 +119,81 @@
       return `hsl(${h}, 55%, 85%)`;
     }
 
-    // JSONP callback
-    function handleData(data) {
-      renderBoard(data);
-    }
+    async function fetchAndRender() {
+      try {
+        const res = await fetch(endpoint + '?_=' + Date.now());
+        const data = await res.json();
+        if (!data.items) {
+          document.getElementById('status-banner').textContent = 'Greška: nema items polja u JSON-u';
+          return;
+        }
 
-    function renderBoard(data) {
-      if (!data.items) {
-        document.getElementById('status-banner').textContent = 'Greška: nema items polja';
-        return;
+        const statuses = ['Proizvodnja','Vez','Pakovanje','Magacin','Nedefinisano'];
+        const counts = {}, totalIskrojeno = {}, slikanCount = {}, breakdown = {};
+        const placed = new Set();
+        statuses.forEach(s => {
+          counts[s]=0;
+          totalIskrojeno[s]=0;
+          slikanCount[s]=0;
+          breakdown[s]={};
+          document.querySelector(`[data-status="${s}"] .cards`).innerHTML='';
+          document.getElementById('count-'+s).textContent='';
+          document.getElementById('summary-'+s).textContent='';
+          document.getElementById('breakdown-'+s).textContent='';
+        });
+
+        data.items.forEach(item=>{
+          const status=item.status?.trim()||'Nedefinisano';
+          if (!statuses.includes(status)) return;
+          if (placed.has(item.product_code)) return;
+          placed.add(item.product_code);
+          counts[status]++;
+          totalIskrojeno[status] += +item.iskrojeno||0;
+          if (item.slikan) slikanCount[status]++;
+          const prod=item.proizvodnja||'Nepoznato';
+          breakdown[status][prod]=(breakdown[status][prod]||0)+(+item.iskrojeno||0);
+
+          const card=document.createElement('div');
+          card.className='card';
+          if (item.proizvodnja) card.style.background=colorFromString(item.proizvodnja);
+          if (status==='Magacin') card.classList.add('done');
+          if (item.alert) card.classList.add('urgent');
+
+          const nameEl=document.createElement('div');
+          const icon=item.slikan?'📷':'🚫📷';
+          const days=item.days_since_publish||0;
+          nameEl.innerHTML=`${icon} <strong>${item.name}</strong><span class="small">${days}d</span>`;
+          card.appendChild(nameEl);
+
+          card.addEventListener('click',()=>showModal(item));
+          document.querySelector(`[data-status="${status}"] .cards`).appendChild(card);
+        });
+
+        adjustScale();
+        statuses.forEach(s=>{
+          document.getElementById('count-'+s).textContent=`(${counts[s]})`;
+          document.getElementById('summary-'+s).textContent=`Ukupno iskrojeno: ${totalIskrojeno[s]}, Slikano: ${slikanCount[s]}`;
+          document.getElementById('breakdown-'+s).textContent=Object.entries(breakdown[s]).map(([p,v])=>`${p}: ${v}`).join(' • ');
+        });
+        document.getElementById('status-banner').textContent=`Učitano ${placed.size} proizvoda. Poslednje osveženje: ${new Date().toLocaleTimeString('sr-RS')}.`;
+      } catch(err) {
+        console.error(err);
+        document.getElementById('status-banner').textContent=`Fetch error: ${err.message}`;
       }
-      const statuses = ['Proizvodnja','Vez','Pakovanje','Magacin','Nedefinisano'];
-      const counts = {}, totalIskrojeno = {}, slikanCount = {}, breakdown = {};
-      const placed = new Set();
-      statuses.forEach(s => {
-        counts[s] = 0;
-        totalIskrojeno[s] = 0;
-        slikanCount[s] = 0;
-        breakdown[s] = {};
-        document.querySelector(`[data-status="${s}"] .cards`).innerHTML = '';
-        document.getElementById('count-'+s).textContent = '';
-        document.getElementById('summary-'+s).textContent = '';
-        document.getElementById('breakdown-'+s).textContent = '';
-      });
-
-      data.items.forEach(item => {
-        const statusRaw = item.status?.trim() || 'Nedefinisano';
-        const status = statuses.includes(statusRaw) ? statusRaw : 'Nedefinisano';
-        if (placed.has(item.product_code)) return;
-        placed.add(item.product_code);
-        counts[status]++;
-        totalIskrojeno[status] += +item.iskrojeno || 0;
-        if (item.slikan) slikanCount[status]++;
-        const prod = item.proizvodnja||'Nepoznato';
-        breakdown[status][prod] = (breakdown[status][prod]||0) + (+item.iskrojeno||0);
-
-        const col = document.querySelector(`[data-status="${status}"] .cards`);
-        const card = document.createElement('div');
-        card.className = 'card';
-        if (item.proizvodnja) card.style.background = colorFromString(item.proizvodnja);
-        if (item.alert) card.classList.add('urgent');
-        if (status==='Magacin') card.classList.add('done');
-
-        // Ikonica, naziv i broj dana
-        const nameEl = document.createElement('div');
-        const icon = item.slikan ? '📷' : '🚫📷';
-        const days = item.days_since_publish||0;
-        nameEl.innerHTML = `${icon} <strong>${item.name}</strong><span class="small">${days}d</span>`;
-        card.appendChild(nameEl);
-
-        card.addEventListener('click',()=> showModal(item));
-        col.appendChild(card);
-      });
-
-      adjustScale();
-      statuses.forEach(s=>{
-        document.getElementById('count-'+s).textContent = `(${counts[s]})`;
-        document.getElementById('summary-'+s).textContent =
-          `Ukupno iskrojeno: ${totalIskrojeno[s]}, Slikano: ${slikanCount[s]}`;
-        const parts = [];
-        for (let p in breakdown[s]) parts.push(`${p}: ${breakdown[s][p]}`);
-        document.getElementById('breakdown-'+s).textContent = parts.join(' • ');
-      });
-      document.getElementById('status-banner').textContent =
-        `Učitano ${placed.size} proizvoda. Poslednje osveženje: ${new Date().toLocaleTimeString('sr-RS')}.`;
     }
 
-    function loadJSONP() {
-      const tag = document.createElement('script');
-      tag.src = endpoint + '?callback=handleData';
-      document.body.appendChild(tag);
+    function adjustScale() {
+      const w=document.querySelector('.board-wrapper'), b=document.getElementById('board');
+      const avail=w.clientHeight;
+      let need=0;
+      document.querySelectorAll('.column').forEach(c=>need=Math.max(need,c.scrollHeight));
+      b.style.transform=`scale(${Math.min(1,avail/need)})`;
     }
 
-    function adjustScale(){
-      const wrapper = document.querySelector('.board-wrapper'),
-            board = document.getElementById('board');
-      const availableH = wrapper.clientHeight;
-      let neededH = 0;
-      document.querySelectorAll('.column').forEach(c=> {
-        neededH = Math.max(neededH,c.scrollHeight);
-      });
-      board.style.transform = `scale(${Math.min(1,availableH/neededH)})`;
-    }
-
-    function showModal(item){
-      const m = document.getElementById('modal');
+    function showModal(item) {
+      const m=document.getElementById('modal');
       m.style.display='block';
-      m.innerHTML = `
+      m.innerHTML=`
         <div class="modal">
           <div class="modal-content">
             <div class="close" onclick="hideModal()">✕</div>
@@ -223,15 +211,11 @@
           </div>
         </div>`;
     }
-
-    function hideModal(){
-      const m = document.getElementById('modal');
-      m.innerHTML=''; m.style.display='none';
-    }
+    function hideModal(){ const m=document.getElementById('modal'); m.innerHTML=''; m.style.display='none'; }
 
     window.addEventListener('resize',adjustScale);
-    loadJSONP();
-    setInterval(loadJSONP, 10*60*1000);
+    fetchAndRender();
+    setInterval(fetchAndRender,10*60*1000);
   </script>
 </body>
 </html>
