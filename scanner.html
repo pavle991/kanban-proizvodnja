@@ -7,26 +7,43 @@
   <style>
     :root { color-scheme: light; }
     body { margin:0; font-family: system-ui,-apple-system,BlinkMacSystemFont,sans-serif; background:#f5f7fb; color:#111; }
-    .wrap { max-width:520px; margin:0 auto; padding:16px; }
+    .wrap { max-width:560px; margin:0 auto; padding:16px; }
     .card { background:#fff; border-radius:12px; padding:16px; box-shadow:0 8px 24px rgba(0,0,0,.06); }
     .title { font-weight:700; font-size:18px; margin:0 0 8px; }
-    .grid { display:grid; grid-template-columns: 140px 1fr; gap:6px 10px; font-size:14px; margin:8px 0 0; }
+    .grid { display:grid; grid-template-columns: 140px 1fr; gap:6px 10px; font-size:14px; margin:8px 0 12px; }
     .k { color:#555; }
     .v { color:#111; font-weight:600; }
-    form { margin-top:14px; }
-    label { display:block; font-size:13px; color:#333; margin-bottom:6px; }
-    select, button {
-      width:100%; padding:10px 12px; font-size:16px; border-radius:10px; border:1px solid #d0d7de; background:#fff;
+    .hint { font-size:13px; color:#444; margin:6px 0 10px; }
+
+    /* Dugmad statusa */
+    .btns {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 8px;
     }
-    button { margin-top:10px; background:#111; color:#fff; cursor:pointer; border:0; }
-    button:hover { filter:brightness(0.95); }
-    .muted { font-size:12px; color:#666; margin-top:8px; text-align:center; }
+    button.status {
+      display:inline-flex; align-items:center; justify-content:center;
+      padding:10px 12px; border-radius:10px; border:1px solid #d0d7de; background:#fff;
+      font-size:14px; cursor:pointer; transition: transform .02s ease, background .15s ease;
+      box-shadow: 0 1px 2px rgba(0,0,0,.04);
+    }
+    button.status:hover { background:#f3f4f6; }
+    button.status:active { transform: scale(0.98); }
+    button.status.current {
+      border-color:#16a34a; color:#166534; background:#dcfce7;
+      cursor:default;
+    }
+    button.status.current::before { content: "✓ "; font-weight:700; }
+    button.status:disabled { opacity:.7; cursor:not-allowed; }
+
+    .muted { font-size:12px; color:#666; margin-top:10px; text-align:center; }
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="card">
       <div class="title"><?= product.name ?></div>
+
       <div class="grid">
         <div class="k">Šifra:</div><div class="v"><?= product.code ?></div>
         <div class="k">Trenutni status:</div><div class="v"><?= product.status ?></div>
@@ -34,23 +51,32 @@
         <div class="k">Količina S/M/L:</div><div class="v"><?= product.qtyS ?>/<?= product.qtyM ?>/<?= product.qtyL ?></div>
       </div>
 
+      <div class="hint">Tapni na status koji želiš da postaviš:</div>
+
       <form method="post" action="<?= webAppUrl ?>">
         <input type="hidden" name="rowIdx" value="<?= rowIdx ?>">
 
-        <label for="status">Novi status</label>
-        <select name="status" id="status">
-          <? for (var i=0; i<statuses.length; i++) { var s = statuses[i]; ?>
-            <option value="<?= s ?>" <?= (s===product.status ? 'selected' : '') ?>><?= s ?></option>
+        <div class="btns">
+          <? for (var i=0; i<statuses.length; i++) {
+               var s = statuses[i];
+               var isCurrent = (s === product.status);
+          ?>
+            <button
+              type="submit"
+              class="status<?= isCurrent ? ' current' : '' ?>"
+              name="status"
+              value="<?= s ?>"
+              <?= isCurrent ? 'disabled' : '' ?>
+            >
+              <?= s ?>
+            </button>
           <? } ?>
-        </select>
-
-        <button type="submit">Sačuvaj</button>
+        </div>
       </form>
 
-      <div class="muted">Posle snimanja zatvori ovaj ekran.</div>
+      <div class="muted">Posle snimanja možeš zatvoriti ovaj ekran.</div>
 
-      <!-- Debug (ne vidi se u UI): -->
-      <!-- STATUSI: <?= JSON.stringify(statuses) ?> -->
+      <!-- DEBUG: STATUSI: <?= JSON.stringify(statuses) ?> -->
     </div>
   </div>
 </body>
