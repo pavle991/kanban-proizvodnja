@@ -4,105 +4,182 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Skener statusa proizvoda</title>
+
+  <!-- Ubrzavanje konekcije ka Apps Script-u -->
+  <link rel="preconnect" href="https://script.google.com" crossorigin>
+  <link rel="preconnect" href="https://googleusercontent.com" crossorigin>
+  <link rel="preconnect" href="https://apis.google.com" crossorigin>
+
   <style>
     :root { color-scheme: light dark; }
+    *{box-sizing:border-box}
     body { margin:0; font-family: system-ui,-apple-system,BlinkMacSystemFont,sans-serif; background:#f5f7fb; color:#111; }
-    .wrap { max-width: 900px; margin: 0 auto; padding: 12px; }
-    header { display:flex; align-items:center; justify-content:space-between; gap:12px; }
-    h1 { font-size:1.1rem; margin:0; }
-    .bar { display:flex; gap:8px; width:100%; }
-    input[type="text"] { flex:1; padding:10px 12px; font-size:1rem; border-radius:8px; border:1px solid #cfd6e4; }
-    button, a.btn { padding:10px 14px; font-size:1rem; border-radius:8px; border:0; background:#2563eb; color:#fff; text-decoration:none; cursor:pointer; }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 14px; }
+    header { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+    h1 { font-size:1.05rem; margin:0; letter-spacing:.2px; }
+
+    .toolbar { display:flex; gap:8px; width:100%; flex-wrap:wrap; align-items:center; }
+    .bar { display:flex; gap:8px; flex:1 1 420px; }
+    input[type="text"] { flex:1; padding:10px 12px; font-size:1rem; border-radius:10px; border:1px solid #cfd6e4; background:#fff; }
+    button, a.btn { padding:10px 14px; font-size:1rem; border-radius:10px; border:0; background:#2563eb; color:#fff; text-decoration:none; cursor:pointer; }
     button.secondary, a.secondary { background:#e5e7eb; color:#111; }
     .info { font-size:0.9rem; color:#444; margin:8px 0 0; }
-    .frame-wrap { height: calc(100vh - 120px); margin-top: 10px; background:#fff; border:1px solid #e5e7eb; border-radius:10px; overflow:hidden; }
-    iframe { width:100%; height:100%; border:0; }
-    .loading { display:none; align-items:center; justify-content:center; height:100%; color:#666; font-size:0.95rem; }
+
+    .chips { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+    .chip { background:#fff; border:1px solid #dbe2ef; color:#0f172a; padding:6px 10px; border-radius:999px; font-size:.9rem; cursor:pointer; }
+    .chip:hover { border-color:#b6c3dd; }
+
+    .frame-wrap { height: calc(100vh - 150px); margin-top: 10px; background:#fff; border:1px solid #e5e7eb; border-radius:12px; overflow:hidden; position:relative; }
+    iframe { width:100%; height:100%; border:0; display:block; }
+    .loading { display:none; align-items:center; justify-content:center; gap:8px; position:absolute; inset:0; color:#555; font-size:.95rem; background:
+      repeating-linear-gradient(45deg,#fafcff,#fafcff 10px,#f3f6fd 10px,#f3f6fd 20px);
+    }
+    .spinner{ width:18px; height:18px; border:2px solid #c4d1ef; border-top-color:#2563eb; border-radius:50%; animation:spin 1s linear infinite; }
+    @keyframes spin{to{transform:rotate(360deg)}}
     .hidden { display:none !important; }
+    .hint { font-size:.85rem; color:#556; margin-top:6px; }
   </style>
 </head>
 <body>
   <div class="wrap">
     <header>
       <h1>Skener statusa proizvoda</h1>
+      <div class="toolbar">
+        <div class="bar">
+          <input id="codeInput" type="text" placeholder="Unesi šifru (tačno kao u koloni H)" />
+          <button id="openBtn" title="Otvori u okviru">Otvori</button>
+          <a id="directBtn" class="btn secondary" href="#" target="_blank" rel="noopener">Direktno</a>
+        </div>
+        <div class="hint">Prihvata <code>?code=...</code> ili <code>?product_code=...</code>. Forma iz Apps Script-a se učitava u nastavku.</div>
+      </div>
     </header>
 
-    <div class="bar">
-      <input id="codeInput" type="text" placeholder="Unesi šifru (tačno kao u koloni H)" />
-      <button id="openBtn">Otvori</button>
-      <a id="directBtn" class="btn secondary" href="#" target="_blank" rel="noopener">Direktno</a>
-    </div>
-    <div class="info">Link prihvata <code>?code=...</code> ili <code>?product_code=...</code>. Učitava Apps Script formu u iframe.</div>
+    <!-- Status prečice (vizuelne – šalju status kao parametar, WebApp može da ga ignoriše bez greške) -->
+    <div class="chips" id="chips"></div>
 
     <div class="frame-wrap">
-      <div id="loading" class="loading">Učitavanje forme…</div>
-      <iframe id="scanFrame" title="Scanner" class="hidden"></iframe>
+      <div id="loading" class="loading"><div class="spinner"></div> <span>Učitavanje forme…</span></div>
+      <iframe id="scanFrame" title="Scanner" class="hidden" referrerpolicy="no-referrer"></iframe>
     </div>
   </div>
 
   <script>
-    // OVDE STAVI SVOJ Web App EXEC URL (Manage deployments → Web app → URL)
+    // >>> Tvoj Web App EXEC URL (Manage deployments → Web app → URL)
     const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbyl5_WP4mLIogkidJiUxugn89XUFgjyboPr2KgA7_AkN-V2qK_xT1Jlo_BuNTEtRZ7Z/exec';
 
-    const $ = sel => document.querySelector(sel);
+    // Tvoji statusi (novi)
+    const STATUSES = [
+      'Proizvodnja',
+      'Završeno u proizvodnji',
+      'Vez',
+      'Završeno na vezu',
+      'Pakovanje',
+      'Spremno za Magacin'
+    ];
+
+    // DOM
+    const $ = s => document.querySelector(s);
     const codeInput = $('#codeInput');
     const openBtn = $('#openBtn');
     const directBtn = $('#directBtn');
     const frame = $('#scanFrame');
     const loading = $('#loading');
+    const chipsWrap = $('#chips');
 
-    function getQueryParam(name) {
-      const url = new URL(window.location.href);
-      return url.searchParams.get(name);
+    // Brži prvi load: "zagrej" Apps Script čim se stranica otvori
+    (function keepWarmOnce(){
+      try{ fetch(WEBAPP_URL + '?health=1', { mode:'no-cors', cache:'no-store' }); }catch(_){}
+    })();
+    // Održavaj ga “budnim” dok je stranica otvorena
+    setInterval(()=>{ try{ fetch(WEBAPP_URL + '?health=1', { mode:'no-cors' }); }catch(_){} }, 240000); // 4 min
+
+    function getParam(name){
+      const u=new URL(window.location.href);
+      return u.searchParams.get(name);
     }
-    function currentCode() {
-      return (codeInput.value || '').trim().replace(/\s+/g, ' ');
+    function setParam(name,val){
+      const u=new URL(window.location.href);
+      if (val==null) u.searchParams.delete(name); else u.searchParams.set(name,val);
+      history.replaceState(null,'',u.toString());
     }
-    function buildScanUrl(code) {
-      // NE tražimo action=scan — WebApp prima i samo ?code=
-      return WEBAPP_URL + '?code=' + encodeURIComponent(code);
+
+    function currentCode(){
+      return (codeInput.value||'').trim().replace(/\s+/g,' ');
     }
-    function showInFrame(url) {
+
+    // Prosljeđujemo i opciono ?status= da bi WebApp (ako ga jednog dana podrži) znao preselekt
+    function buildScanUrl(code, status){
+      let url = WEBAPP_URL + '?code=' + encodeURIComponent(code);
+      if (status) url += '&status=' + encodeURIComponent(status);
+      return url;
+    }
+
+    function setDirectLink(url){ directBtn.href = url; }
+
+    function showInFrame(url){
       loading.style.display = 'flex';
       frame.classList.add('hidden');
+      // fallback: ako onload ne pogađa (npr. cross-domain), skini loader posle 2.5s
+      let timer = setTimeout(()=>{
+        loading.style.display = 'none';
+        frame.classList.remove('hidden');
+      }, 2500);
       frame.onload = () => {
+        clearTimeout(timer);
         loading.style.display = 'none';
         frame.classList.remove('hidden');
       };
       frame.src = url;
     }
-    function setDirectLink(url) {
-      directBtn.href = url;
+
+    // Render status čipova
+    function renderChips(){
+      chipsWrap.innerHTML = '';
+      STATUSES.forEach(st=>{
+        const x = document.createElement('button');
+        x.className = 'chip';
+        x.type = 'button';
+        x.textContent = st;
+        x.title = 'Prečica: doda status u URL (forma i dalje prikazuje tvoj padajući meni).';
+        x.addEventListener('click', ()=>{
+          const code = currentCode();
+          if (!code){ alert('Prvo unesi šifru proizvoda.'); codeInput.focus(); return; }
+          const url = buildScanUrl(code, st);
+          setDirectLink(url);
+          showInFrame(url);
+          setParam('code', code);
+          setParam('status', st);
+        });
+        chipsWrap.appendChild(x);
+      });
     }
 
-    // Init from URL
-    (function init() {
-      const code = (getQueryParam('code') || getQueryParam('product_code') || '').trim();
-      if (code) {
+    // Init iz URL-a
+    (function init(){
+      renderChips();
+      const code = (getParam('code') || getParam('product_code') || '').trim();
+      const status = (getParam('status') || '').trim();
+      if (code){
         codeInput.value = code;
-        const scanUrl = buildScanUrl(code);
+        const scanUrl = buildScanUrl(code, status || undefined);
         setDirectLink(scanUrl);
         showInFrame(scanUrl);
       }
     })();
 
-    // Dugme "Otvori"
-    openBtn.addEventListener('click', () => {
+    // Otvori
+    openBtn.addEventListener('click', ()=>{
       const code = currentCode();
-      if (!code) { alert('Upiši šifru proizvoda (tačno kao u koloni H).'); return; }
-      const scanUrl = buildScanUrl(code);
-      setDirectLink(scanUrl);
-      showInFrame(scanUrl);
-      // update URL (bez reloada)
-      const u = new URL(window.location.href);
-      u.searchParams.set('code', code);
-      history.replaceState(null, '', u.toString());
+      if (!code){ alert('Upiši šifru proizvoda (tačno kao u koloni H).'); return; }
+      const status = (getParam('status')||'').trim() || undefined;
+      const url = buildScanUrl(code, status);
+      setDirectLink(url);
+      showInFrame(url);
+      setParam('code', code);
     });
 
-    // Enter u inputu
-    codeInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') openBtn.click();
-    });
+    // Enter u polju
+    codeInput.addEventListener('keydown', (e)=>{ if (e.key === 'Enter') openBtn.click(); });
   </script>
 </body>
 </html>
