@@ -5,124 +5,156 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Skener statusa proizvoda</title>
 
-  <!-- Ubrzaj prvi load WebApp-a -->
-  <link rel="preconnect" href="https://script.google.com" crossorigin>
-  <link rel="preconnect" href="https://googleusercontent.com" crossorigin>
-  <link rel="preconnect" href="https://apis.google.com" crossorigin>
+  <!-- hint preconnect za brže učitavanje Apps Script-a -->
+  <link rel="preconnect" href="https://script.google.com">
+  <link rel="preconnect" href="https://ssl.gstatic.com">
 
   <style>
-    :root { color-scheme: light dark; }
-    *{box-sizing:border-box}
-    body { margin:0; font-family: system-ui,-apple-system,BlinkMacSystemFont,sans-serif; background:#f5f7fb; color:#111; }
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: system-ui,-apple-system,BlinkMacSystemFont,sans-serif; background:#f5f7fb; color:#0f172a; }
     .wrap { max-width: 980px; margin: 0 auto; padding: 14px; }
-    header { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
-    h1 { font-size:1.05rem; margin:0; letter-spacing:.2px; }
 
-    .toolbar { display:flex; gap:8px; width:100%; flex-wrap:wrap; align-items:center; }
-    .bar { display:flex; gap:8px; flex:1 1 420px; }
-    input[type="text"] { flex:1; padding:10px 12px; font-size:1rem; border-radius:10px; border:1px solid #cfd6e4; background:#fff; }
-    button, a.btn { padding:10px 14px; font-size:1rem; border-radius:10px; border:0; background:#2563eb; color:#fff; text-decoration:none; cursor:pointer; }
-    button.secondary, a.secondary { background:#e5e7eb; color:#111; }
-    .hint { font-size:0.9rem; color:#444; margin:8px 0 0; }
+    header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; }
+    h1 { font-size:1.05rem; font-weight:700; margin:0; color:#0f172a; }
+    .meta { font-size:.85rem; color:#64748b; }
 
-    .frame-wrap { height: calc(100vh - 150px); margin-top: 10px; background:#fff; border:1px solid #e5e7eb; border-radius:12px; overflow:hidden; position:relative; }
-    iframe { width:100%; height:100%; border:0; display:block; }
-    .loading { display:none; align-items:center; justify-content:center; gap:8px; position:absolute; inset:0; color:#555; font-size:.95rem; background:
-      repeating-linear-gradient(45deg,#fafcff,#fafcff 10px,#f3f6fd 10px,#f3f6fd 20px);
+    .bar { display:grid; grid-template-columns: 1fr auto auto auto; gap:8px; width:100%; }
+    input[type="text"] {
+      padding:10px 12px; font-size:1rem; border-radius:10px; border:1px solid #cbd5e1; background:#fff; outline:none;
     }
-    .spinner{ width:18px; height:18px; border:2px solid #c4d1ef; border-top-color:#2563eb; border-radius:50%; animation:spin 1s linear infinite; }
-    @keyframes spin{to{transform:rotate(360deg)}}
+    input[type="text"]:focus { border-color:#60a5fa; box-shadow:0 0 0 4px rgba(37,99,235,.1); }
+
+    button, a.btn {
+      padding:10px 14px; font-size:1rem; border-radius:10px; border:0; background:#2563eb; color:#fff; text-decoration:none; cursor:pointer;
+    }
+    .btn.secondary { background:#e5e7eb; color:#111; }
+    .btn.ghost { background:transparent; border:1px solid #cbd5e1; color:#111; }
+
+    .tips { font-size:.9rem; color:#475569; margin:8px 0 0; }
+    code { background:#e2e8f0; padding:2px 6px; border-radius:6px; }
+
+    .frame-wrap {
+      height: calc(100vh - 160px);
+      margin-top: 12px; background:#fff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden;
+      box-shadow: 0 10px 18px rgba(2,6,23,.04);
+      position: relative;
+    }
+    iframe { width:100%; height:100%; border:0; display:block; }
+    .loading {
+      position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+      color:#64748b; font-size:.95rem; background:
+        repeating-linear-gradient( -45deg, #f8fafc, #f8fafc 10px, #f1f5f9 10px, #f1f5f9 20px );
+    }
     .hidden { display:none !important; }
+
+    .row { display:flex; gap:8px; align-items:center; }
+    .grow { flex:1; }
   </style>
 </head>
 <body>
   <div class="wrap">
     <header>
       <h1>Skener statusa proizvoda</h1>
-      <div class="toolbar">
-        <div class="bar">
-          <input id="codeInput" type="text" placeholder="Unesi šifru (tačno kao u koloni H)" />
-          <button id="openBtn" title="Otvori u okviru">Otvori</button>
-          <a id="directBtn" class="btn secondary" href="#" target="_blank" rel="noopener">Direktno</a>
-        </div>
-        <div class="hint">Forma ispod (Apps Script) sadrži padajući meni sa statusima i dugme “Sačuvaj”.</div>
-      </div>
+      <div class="meta" id="metaPing">Provera veze…</div>
     </header>
 
+    <div class="bar">
+      <input id="codeInput" type="text" placeholder="Unesi šifru (tačno kao u koloni H)" autocomplete="off" />
+      <button id="openBtn">Otvori</button>
+      <a id="directBtn" class="btn secondary" href="#" target="_blank" rel="noopener">Direktno</a>
+      <button id="refreshBtn" class="btn ghost" title="Ponovo učitaj formu">Osveži</button>
+    </div>
+
+    <div class="tips">
+      Forma u nastavku dolazi iz Apps Script Web App-a (iframe). Link prihvata <code>?code=…</code> ili <code>?product_code=…</code>.
+    </div>
+
     <div class="frame-wrap">
-      <div id="loading" class="loading"><div class="spinner"></div> <span>Učitavanje forme…</span></div>
-      <iframe id="scanFrame" title="Scanner" class="hidden" referrerpolicy="no-referrer"></iframe>
+      <div id="loading" class="loading">Učitavanje forme…</div>
+      <iframe id="scanFrame" title="Scanner" referrerpolicy="no-referrer"></iframe>
     </div>
   </div>
 
   <script>
-    // Tvoj Web App EXEC URL
+    // ⇩⇩⇩ ZAMENI ako promeniš deployment (ostavio sam tvoj trenutni) ⇩⇩⇩
     const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbyl5_WP4mLIogkidJiUxugn89XUFgjyboPr2KgA7_AkN-V2qK_xT1Jlo_BuNTEtRZ7Z/exec';
 
     const $ = s => document.querySelector(s);
     const codeInput = $('#codeInput');
-    const openBtn = $('#openBtn');
+    const openBtn   = $('#openBtn');
     const directBtn = $('#directBtn');
-    const frame = $('#scanFrame');
-    const loading = $('#loading');
+    const refreshBtn= $('#refreshBtn');
+    const frame     = $('#scanFrame');
+    const loading   = $('#loading');
+    const metaPing  = $('#metaPing');
 
-    // “Zagrej” WebApp da brže odgovori
-    (function keepWarmOnce(){
-      try{ fetch(WEBAPP_URL + '?health=1', { mode:'no-cors', cache:'no-store' }); }catch(_){}
-    })();
-    setInterval(()=>{ try{ fetch(WEBAPP_URL + '?health=1', { mode:'no-cors' }); }catch(_){} }, 240000);
-
-    function getParam(name){
-      const u=new URL(window.location.href);
-      return u.searchParams.get(name);
+    function qp(name) { return new URL(location.href).searchParams.get(name); }
+    function normCode(v) { return (v||'').trim().replace(/\s+/g,' '); }
+    function buildScanUrl(code, bust=true) {
+      const ts = bust ? ('&_v=' + Date.now()) : '';
+      // doGet u Apps Script podržava ?code=… (nije potreban action=scan)
+      return WEBAPP_URL + '?code=' + encodeURIComponent(code) + ts;
     }
-    function setParam(name,val){
-      const u=new URL(window.location.href);
-      if (val==null) u.searchParams.delete(name); else u.searchParams.set(name,val);
-      history.replaceState(null,'',u.toString());
-    }
-    function currentCode(){
-      return (codeInput.value||'').trim().replace(/\s+/g,' ');
-    }
-    function buildScanUrl(code){
-      return WEBAPP_URL + '?code=' + encodeURIComponent(code);
-    }
-    function setDirectLink(url){ directBtn.href = url; }
-    function showInFrame(url){
-      loading.style.display = 'flex';
-      frame.classList.add('hidden');
-      // fallback u slučaju da onload ne “pali” zbog third-party domena
-      let timer = setTimeout(()=>{
-        loading.style.display = 'none';
-        frame.classList.remove('hidden');
-      }, 2500);
-      frame.onload = () => { clearTimeout(timer); loading.style.display='none'; frame.classList.remove('hidden'); };
+    function showInFrame(url) {
+      loading.classList.remove('hidden');
+      frame.style.visibility = 'hidden';
+      frame.onload = () => {
+        loading.classList.add('hidden');
+        frame.style.visibility = 'visible';
+      };
       frame.src = url;
     }
+    function setDirectLink(url){ directBtn.href = url; }
 
-    // Init iz URL-a
+    // Health ping – odmah javi da li je backend živ (i osveži keš)
+    (async function health(){
+      try{
+        const res = await fetch(WEBAPP_URL + '?health=1&_v=' + Date.now(), { cache:'no-store', mode:'no-cors' });
+        // mode:no-cors nema body, ali ako ne pukne – sve ok
+        metaPing.textContent = 'Backend: OK';
+      }catch(e){
+        metaPing.textContent = 'Backend: nedostupan';
+      }
+    })();
+
+    // Init from URL (?code=…)
     (function init(){
-      const code = (getParam('code') || getParam('product_code') || '').trim();
-      if (code){
+      const code = normCode(qp('code') || qp('product_code'));
+      if (code) {
         codeInput.value = code;
-        const scanUrl = buildScanUrl(code);
-        setDirectLink(scanUrl);
-        showInFrame(scanUrl);
+        const url = buildScanUrl(code, true);
+        setDirectLink(url);
+        showInFrame(url);
       }
     })();
 
     // Otvori
-    openBtn.addEventListener('click', ()=>{
-      const code = currentCode();
-      if (!code){ alert('Upiši šifru proizvoda (tačno kao u koloni H).'); return; }
-      const url = buildScanUrl(code);
+    openBtn.addEventListener('click', () => {
+      const code = normCode(codeInput.value);
+      if (!code) { alert('Upiši šifru proizvoda (tačno kao u koloni H).'); return; }
+      const url = buildScanUrl(code, true);
       setDirectLink(url);
       showInFrame(url);
-      setParam('code', code);
+      // zapamti u URL-u (bez reloada)
+      const u = new URL(location.href);
+      u.searchParams.set('code', code);
+      history.replaceState(null, '', u.toString());
     });
 
-    // Enter u polju
-    codeInput.addEventListener('keydown', (e)=>{ if (e.key === 'Enter') openBtn.click(); });
+    // Enter
+    codeInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') openBtn.click();
+    });
+
+    // Osveži (hard reload iframe-a sa cache-buster-om)
+    refreshBtn.addEventListener('click', () => {
+      const code = normCode(codeInput.value);
+      if (!code) { alert('Nema šifre za osvežavanje.'); return; }
+      const url = buildScanUrl(code, true);
+      setDirectLink(url);
+      showInFrame(url);
+    });
   </script>
 </body>
 </html>
