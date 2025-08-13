@@ -5,32 +5,58 @@
   <title>Kanban proizvodnje</title>
   <meta http-equiv="refresh" content="600">
   <style>
-    html { font-size: 14px; }
-    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif; margin:0; padding:10px; background:#f0f2f5; }
-    .header { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
-    h2 { margin:0; font-size:1.5rem; }
-    .controls { display:flex; align-items:center; gap:8px; }
-    .controls button { padding:6px 12px; font-size:0.9rem; cursor:pointer; }
-    .status-banner { display:inline-block; padding:6px 10px; border-radius:6px; background:#e6f7ff; border:1px solid #40a9ff; font-size:1rem; }
+    :root{
+      --bg:#f5f7fb; --ink:#111; --muted:#556; --chip:#fff; --chip-b:#dfe6f3;
+      --col-bg:#e9eef6; --hdr:#0b6ef3; --hdr-bg:#eaf3ff;
+    }
+    html { font-size:14px; }
+    * { box-sizing:border-box; }
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif; margin:0; padding:10px; background:var(--bg); color:var(--ink); }
+    .header { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
+    h2 { margin:0; font-size:1.4rem; letter-spacing:.2px; }
+    .controls { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+    .controls button { padding:6px 12px; font-size:0.9rem; cursor:pointer; border-radius:8px; border:1px solid var(--chip-b); background:#fff; }
+    .status-banner { display:inline-block; padding:6px 10px; border-radius:8px; background:var(--hdr-bg); border:1px solid #b7d3ff; font-size:0.95rem; color:#0849a8; }
     .legend { display:flex; flex-wrap:wrap; gap:6px; }
-    .legend-item { display:flex; align-items:center; padding:4px 8px; border-radius:4px; background:#fff; border:2px solid; font-size:0.9rem; cursor:pointer; }
-    .legend-item.active { box-shadow:0 0 0 2px #000 inset; }
-    .legend-color { width:12px; height:12px; border-radius:2px; margin-right:6px; }
-    .filter-info { margin:8px 0; font-size:0.9rem; background:#fff; padding:8px; border-radius:4px; box-shadow:0 1px 3px rgba(0,0,0,0.1); display:none; }
+    .legend-item { display:flex; align-items:center; gap:6px; padding:4px 8px; border-radius:999px; background:var(--chip); border:1.5px solid var(--chip-b); font-size:0.88rem; cursor:pointer; }
+    .legend-item.active { outline:2px solid #0002; }
+    .legend-color { width:12px; height:12px; border-radius:3px; }
+
+    .filter-info { margin:8px 0; font-size:0.9rem; background:#fff; padding:8px; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.08); display:none; }
     .board-wrapper { width:100%; height: calc(100vh - 320px); overflow:hidden; }
-    .board { display: flex; gap:8px; transform-origin: top left; }
-    .column { flex:1; background:#e8eef5; border-radius:6px; display:flex; flex-direction:column; padding:6px; }
-    .col-header { font-weight: bold; margin-bottom:4px; flex:0 0 auto; font-size:0.9rem; cursor:pointer; }
-    .col-header:hover { background:rgba(0,0,0,0.05); }
-    .col-header-top { display:flex; justify-content: space-between; align-items: baseline; }
-    .cards { flex:1; display:grid; grid-template-columns:1fr 1fr; gap:6px; }
-    .card { background:#fff; border-radius:6px; padding:6px; box-shadow:0 1px 3px rgba(0,0,0,0.1); position: relative; cursor:pointer; color:#1f2937; font-size:0.85rem; display:flex; align-items:center; justify-content:center; height:40px; }
-    .small { font-size:0.75rem; color:#222; margin-left:4px; }
-    .urgent { outline:2px solid #ff9f1a; }
-    .done { opacity:0.8; }
-    .modal, .status-modal { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:10; }
-    .modal-content, .status-content { background:#fff; border-radius:6px; padding:16px; width:90%; max-width:600px; position: relative; box-shadow:0 8px 20px rgba(0,0,0,0.1); font-size:0.85rem; }
-    .close { position:absolute; top:8px; right:8px; cursor:pointer; font-size:1.2rem; }
+    .board { display:flex; gap:10px; transform-origin: top left; }
+    .column { flex:1; min-width:230px; background:var(--col-bg); border-radius:10px; display:flex; flex-direction:column; padding:8px; }
+    .col-header { font-weight:700; margin-bottom:6px; flex:0 0 auto; font-size:0.95rem; cursor:pointer; color:#223; }
+    .col-header:hover { background:rgba(0,0,0,0.04); border-radius:8px; }
+    .col-header-top { display:flex; justify-content: space-between; align-items: baseline; gap:6px; }
+    .column-count { color:#334; opacity:.75; font-weight:600; }
+
+    .cards { flex:1; display:grid; grid-template-columns:1fr 1fr; gap:8px; align-content:start; }
+    .card {
+      background:#fff; border-radius:10px; padding:6px 8px;
+      box-shadow:0 1px 2px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.04);
+      position: relative; cursor:pointer; color:#1f2937; font-size:0.86rem;
+      min-height:48px; display:flex; align-items:center;
+      overflow:hidden;
+    }
+    .card.done { opacity:.85; }
+    .card.urgent { outline:2px solid #ffb54a; }
+    .card-inner { display:grid; grid-template-columns: 22px 1fr auto; gap:8px; align-items:center; width:100%; }
+    .cam { width:22px; text-align:center; flex:0 0 auto; }
+    .title {
+      font-weight:600; line-height:1.15; color:#102;
+      display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+      overflow:hidden; text-overflow:ellipsis; word-break:break-word;
+    }
+    .days { font-size:.78rem; color:var(--muted); font-weight:700; }
+    .swatch {
+      position:absolute; inset:0; border-radius:10px; background:var(--swatch);
+      opacity:.18; pointer-events:none;
+    }
+
+    .modal, .status-modal { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.45); display:flex; align-items:center; justify-content:center; z-index:10; }
+    .modal-content, .status-content { background:#fff; border-radius:12px; padding:16px; width:92%; max-width:640px; position: relative; box-shadow:0 12px 28px rgba(0,0,0,0.15); font-size:0.9rem; }
+    .close { position:absolute; top:8px; right:10px; cursor:pointer; font-size:1.2rem; line-height:1; border-radius:8px; padding:2px 6px; }
   </style>
 </head>
 <body>
@@ -56,6 +82,17 @@
         </div>
         <div class="cards"></div>
       </div>
+
+      <div class="column" data-status="Završeno u proizvodnji">
+        <div class="col-header" onclick="showStatusInfo('Završeno u proizvodnji')">
+          <div class="col-header-top">
+            <div>Završeno u proizvodnji</div>
+            <div class="column-count" id="count-Završeno u proizvodnji"></div>
+          </div>
+        </div>
+        <div class="cards"></div>
+      </div>
+
       <div class="column" data-status="Vez">
         <div class="col-header" onclick="showStatusInfo('Vez')">
           <div class="col-header-top">
@@ -65,6 +102,17 @@
         </div>
         <div class="cards"></div>
       </div>
+
+      <div class="column" data-status="Završeno na vezu">
+        <div class="col-header" onclick="showStatusInfo('Završeno na vezu')">
+          <div class="col-header-top">
+            <div>Završeno na vezu</div>
+            <div class="column-count" id="count-Završeno na vezu"></div>
+          </div>
+        </div>
+        <div class="cards"></div>
+      </div>
+
       <div class="column" data-status="Pakovanje">
         <div class="col-header" onclick="showStatusInfo('Pakovanje')">
           <div class="col-header-top">
@@ -74,11 +122,12 @@
         </div>
         <div class="cards"></div>
       </div>
-      <div class="column" data-status="Magacin">
-        <div class="col-header" onclick="showStatusInfo('Magacin')">
+
+      <div class="column" data-status="Spremno za Magacin">
+        <div class="col-header" onclick="showStatusInfo('Spremno za Magacin')">
           <div class="col-header-top">
-            <div>Magacin</div>
-            <div class="column-count" id="count-Magacin"></div>
+            <div>Spremno za Magacin</div>
+            <div class="column-count" id="count-Spremno za Magacin"></div>
           </div>
         </div>
         <div class="cards"></div>
@@ -92,6 +141,14 @@
   <script>
     var endpoint = "https://script.google.com/macros/s/AKfycbwhKEBafSBhrjNYc5oAosp6kRW4q0aInuTBt-tAZKdXARZskavi1qJdYWJRuLLRZnpTmw/exec";
     var allItems = [];
+    var STATUSES = [
+      'Proizvodnja',
+      'Završeno u proizvodnji',
+      'Vez',
+      'Završeno na vezu',
+      'Pakovanje',
+      'Spremno za Magacin'
+    ];
 
     function fetchAndRender() {
       document.getElementById('status-banner').textContent = 'Učitavanje...';
@@ -99,11 +156,15 @@
       xhr.open('GET', endpoint + '?_=' + Date.now(), true);
       xhr.onload = function() {
         if (xhr.status === 200) {
-          var data = JSON.parse(xhr.responseText);
-          allItems = data.items;
-          buildLegend(allItems);
-          renderBoard(allItems);
-          document.getElementById('status-banner').textContent = 'Učitano ' + allItems.length + ' proizvoda.';
+          try {
+            var data = JSON.parse(xhr.responseText);
+            allItems = data.items || [];
+            buildLegend(allItems);
+            renderBoard(allItems);
+            document.getElementById('status-banner').textContent = 'Učitano ' + allItems.length + ' proizvoda.';
+          } catch(e) {
+            document.getElementById('status-banner').textContent = 'Greška parsiranja';
+          }
         } else {
           document.getElementById('status-banner').textContent = 'Greška status: ' + xhr.status;
         }
@@ -116,18 +177,19 @@
 
     function buildLegend(items) {
       var counts = {'Sve': items.length};
-      items.forEach(i => {
-        counts[i.proizvodnja] = (counts[i.proizvodnja]||0) + 1;
+      items.forEach(function(i){
+        var p = i.proizvodnja || 'Nepoznato';
+        counts[p] = (counts[p]||0) + 1;
       });
       var legend = document.getElementById('legend');
       legend.innerHTML = '';
-      ['Sve'].concat(Object.keys(counts).filter(k=>k!=='Sve')).forEach(prod => {
+      ['Sve'].concat(Object.keys(counts).filter(function(k){return k!=='Sve'})).forEach(function(prod){
         var el = document.createElement('div');
         el.className = 'legend-item' + (window.currentFilter===prod ? ' active' : '');
         var color = prod==='Sve' ? '#000' : colorFromString(prod);
-        el.style.borderColor = color;
+        el.style.borderColor = '#cbd5e1';
         el.innerHTML = '<div class="legend-color" style="background:'+color+'"></div>'+prod+' ('+counts[prod]+')';
-        el.onclick = ()=> {
+        el.onclick = function(){
           window.currentFilter = prod;
           document.getElementById('filterInfo').style.display = 'none';
           renderBoard(allItems);
@@ -137,37 +199,63 @@
     }
 
     function renderBoard(items) {
-      var statuses = ['Proizvodnja','Vez','Pakovanje','Magacin'];
-      statuses.forEach(s=> {
-        document.querySelector('[data-status="'+s+'"] .cards').innerHTML = '';
+      // reset kolone
+      STATUSES.forEach(function(s){
+        var col = document.querySelector('[data-status="'+s+'"] .cards');
+        if (col) col.innerHTML = '';
       });
-      items.forEach(item => {
+
+      items.forEach(function(item){
         if (window.currentFilter && window.currentFilter!=='Sve' && item.proizvodnja!==window.currentFilter) return;
-        var status = item.status && item.status.trim();
-        if (!statuses.includes(status)) return;
+        var status = (item.status || '').trim();
+        if (STATUSES.indexOf(status) === -1) return;
+
         var card = document.createElement('div');
         card.className = 'card';
-        card.style.background = colorFromString(item.proizvodnja);
+        // oboji pozadinu “swatch” slojem — ne utiče na tekst
+        var swatch = document.createElement('div');
+        swatch.className = 'swatch';
+        swatch.style.setProperty('--swatch', colorFromString(item.proizvodnja || ''));
+        card.appendChild(swatch);
+
+        if (status === 'Spremno za Magacin') card.classList.add('done');
         if (item.alert) card.classList.add('urgent');
-        if (status==='Magacin') card.classList.add('done');
-        card.innerHTML = (item.slikan?'📷':'🚫📷')+' <strong>'+item.name+'</strong><span class="small">'+item.days_since_publish+'d</span>';
-        card.onclick = ()=> showModal(item);
-        document.querySelector('[data-status="'+status+'"] .cards').appendChild(card);
+
+        var days = item.days_since_publish || 0;
+        var inner = document.createElement('div');
+        inner.className = 'card-inner';
+        inner.innerHTML =
+          '<div class="cam" title="'+(item.slikan?'Slikano':'Nije slk')+'">'+(item.slikan?'📷':'🚫')+'</div>'+
+          '<div class="title">'+ (item.name || item.product_code || '-') +'</div>'+
+          '<div class="days">'+ days +'d</div>';
+        card.appendChild(inner);
+
+        card.onclick = function(){ showModal(item); };
+
+        var mount = document.querySelector('[data-status="'+status+'"] .cards');
+        if (mount) mount.appendChild(card);
       });
-      statuses.forEach(s=>{
-        document.getElementById('count-'+s).textContent = '(' + document.querySelectorAll('[data-status="'+s+'"] .card').length + ')';
+
+      // brojanje
+      STATUSES.forEach(function(s){
+        var cnt = document.querySelectorAll('[data-status="'+s+'"] .card').length;
+        var el = document.getElementById('count-'+s);
+        if (el) el.textContent = '('+cnt+')';
       });
+
       adjustScale();
     }
 
     function showStatusInfo(status) {
-      var items = allItems.filter(i => i.status===status);
+      var items = allItems.filter(function(i){ return (i.status||'').trim()===status; });
       if (!items.length) return;
+
       var total = items.length;
-      var isk = items.reduce((a,i) => a + i.iskrojeno, 0);
-      var sl = items.filter(i => i.slikan).length;
-      var totalValue = items.reduce((a,i) => a + i.total_price, 0);
+      var isk = items.reduce(function(a,i){ return a + (Number(i.iskrojeno)||0); }, 0);
+      var sl  = items.filter(function(i){ return !!i.slikan; }).length;
+      var totalValue = items.reduce(function(a,i){ return a + (Number(i.total_price)||0); }, 0);
       var k = Math.round(totalValue/1000) + 'k';
+
       var modal = document.getElementById('statusModal');
       modal.innerHTML = '<div class="status-content">' +
         '<div class="close" onclick="hideStatus()">✕</div>' +
@@ -186,16 +274,17 @@
 
     function showModal(item) {
       var m = document.getElementById('modal');
+      var total = (Number(item.total_price)||0).toFixed(2);
       m.innerHTML = '<div class="modal-content">' +
         '<div class="close" onclick="hideModal()">✕</div>' +
-        '<h3>'+item.name+'</h3>' +
-        '<p><strong>Šifra:</strong> '+item.product_code+'</p>' +
-        '<p><strong>Status:</strong> '+item.status+'</p>' +
-        '<p><strong>Proizvodnja:</strong> '+item.proizvodnja+'</p>' +
-        '<p><strong>Dobavljač:</strong> '+item.dobavljac+'</p>' +
-        '<p><strong>Iskrojeno:</strong> '+item.iskrojeno+'</p>' +
-        '<p><strong>Ukupno:</strong> '+item.total_price.toFixed(2)+'</p>' +
-        '<p><strong>Datum objave:</strong> '+item.datum_objave+'</p>' +
+        '<h3>'+ (item.name || item.product_code || '-') +'</h3>' +
+        '<p><strong>Šifra:</strong> '+(item.product_code||'-')+'</p>' +
+        '<p><strong>Status:</strong> '+(item.status||'-')+'</p>' +
+        '<p><strong>Proizvodnja:</strong> '+(item.proizvodnja||'-')+'</p>' +
+        '<p><strong>Dobavljač:</strong> '+(item.dobavljac||'-')+'</p>' +
+        '<p><strong>Iskrojeno:</strong> '+(item.iskrojeno||0)+'</p>' +
+        '<p><strong>Ukupno:</strong> '+ total +'</p>' +
+        '<p><strong>Datum objave:</strong> '+(item.datum_objave||'-')+'</p>' +
         '<p><strong>Slikano:</strong> '+(item.slikan?'Da':'Ne')+'</p>' +
       '</div>';
       m.style.display = 'flex';
@@ -208,17 +297,18 @@
     function colorFromString(str) {
       var h=0;
       for(var i=0;i<str.length;i++){ h = str.charCodeAt(i) + ((h<<5)-h); h&=h; }
-      return 'hsl(' + (Math.abs(h)%360) + ',55%,85%)';
+      return 'hsl(' + (Math.abs(h)%360) + ',70%,60%)';
     }
 
     function adjustScale() {
       var w = document.querySelector('.board-wrapper'),
           b = document.getElementById('board'),
           avail = w.clientHeight, need = 0;
-      document.querySelectorAll('.column').forEach(c => {
+      document.querySelectorAll('.column').forEach(function(c){
         if (c.scrollHeight > need) need = c.scrollHeight;
       });
-      b.style.transform = 'scale(' + Math.min(1, avail/need) + ')';
+      var scale = Math.min(1, avail/need);
+      b.style.transform = 'scale(' + scale + ')';
     }
 
     document.getElementById('reloadBtn').onclick = fetchAndRender;
