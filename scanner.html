@@ -8,14 +8,15 @@
     :root { color-scheme: light; }
     body { margin:0; font-family: system-ui,-apple-system,BlinkMacSystemFont,sans-serif; background:#f5f7fb; color:#111; }
     .wrap { max-width: 880px; margin: 0 auto; padding: 12px; }
-    header { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    header { display:flex; align-items:center; gap:12px; }
     h1 { font-size:1.1rem; margin:0; }
     .bar { display:flex; gap:8px; width:100%; margin-top:8px; }
     input[type="text"] { flex:1; padding:10px 12px; font-size:1rem; border-radius:8px; border:1px solid #cfd6e4; }
-    button, a.btn { padding:10px 14px; font-size:1rem; border-radius:8px; border:0; background:#2563eb; color:#fff; text-decoration:none; cursor:pointer; }
-    a.btn.secondary { background:#e5e7eb; color:#111; }
+    /* Nemoj stilovati globalni <button>; stilizujemo samo .btn */
+    .btn { padding:10px 14px; font-size:1rem; border-radius:8px; border:0; background:#2563eb; color:#fff; text-decoration:none; cursor:pointer; }
+    .btn.secondary { background:#e5e7eb; color:#111; }
     .info { font-size:0.9rem; color:#444; margin:8px 0 0; }
-    .frame-wrap { height: calc(100vh - 140px); margin-top: 10px; background:#fff; border:1px solid #e5e7eb; border-radius:10px; overflow:hidden; }
+    .frame-wrap { height: calc(100vh - 120px); margin-top: 10px; background:#fff; border:1px solid #e5e7eb; border-radius:10px; overflow:hidden; }
     iframe { width:100%; height:100%; border:0; }
     .loading { display:none; align-items:center; justify-content:center; height:100%; color:#666; font-size:0.95rem; }
     .hidden { display:none !important; }
@@ -25,18 +26,15 @@
   <div class="wrap">
     <header>
       <h1>Skener statusa proizvoda</h1>
-      <div style="display:flex; gap:8px; align-items:center">
-        <a id="healthBtn" class="btn secondary" href="#" target="_blank" rel="noopener">Health</a>
-        <span id="ver" style="font-size:.85rem; color:#6b7280"></span>
-      </div>
+      <a id="healthBtn" class="btn secondary" href="#" target="_blank" rel="noopener">Health</a>
     </header>
 
     <div class="bar">
       <input id="codeInput" type="text" placeholder="Unesi šifru (tačno kao u koloni H)" />
-      <button id="openBtn">Otvori</button>
+      <button id="openBtn" class="btn">Otvori</button>
       <a id="directBtn" class="btn secondary" href="#" target="_blank" rel="noopener">Direktno</a>
     </div>
-    <div class="info">Ovaj ekran samo učitava Apps Script formu u iframe. Status menjaš <b>dugmićima</b> u toj formi.</div>
+    <div class="info">Ovaj ekran samo učitava Apps Script formu u iframe. Status menjaš dugmićima u toj formi.</div>
 
     <div class="frame-wrap">
       <div id="loading" class="loading">Učitavanje forme…</div>
@@ -45,10 +43,8 @@
   </div>
 
   <script>
-    // ⬇⬇⬇ Tvoj Web App EXEC URL (NOVI deployment)
-    const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbx52GHBSakD2QDsFifzZMzcNRfWnn8yJGvWZdVIpIQHriSwPzxJOjanp-6zk7xP0qoC/exec';
-    // verzija fronta (služi kao cache-buster)
-    const WEBAPP_VER = 'v1-' + new Date().toISOString().slice(0,10);
+    // NOVI Web App URL (Deployment URL)
+    const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbwzLchj_CdKKC4KeexbxKnoGzxMxYw-OB4lox7tZbArDEG3dEB9ca4awUBUWOQmq57U/exec';
 
     const $ = s => document.querySelector(s);
     const codeInput = $('#codeInput');
@@ -57,49 +53,42 @@
     const healthBtn = $('#healthBtn');
     const frame     = $('#scanFrame');
     const loading   = $('#loading');
-    const verLbl    = $('#ver');
-
-    verLbl.textContent = 'frontend ' + WEBAPP_VER;
-    healthBtn.href = WEBAPP_URL + '?health=1';
 
     function qp(name) {
       try { return (new URL(window.location.href)).searchParams.get(name); }
       catch { return null; }
     }
-    function normCode(v) { return (v || '').trim().replace(/\s+/g, ' '); }
-    function buildScanUrl(code) {
-      // &v=… da nateramo sveže učitavanje Apps Script-a
-      return WEBAPP_URL + '?code=' + encodeURIComponent(code) + '&v=' + Date.now();
-    }
+    function normCode(v) { return (v||'').trim().replace(/\s+/g,' '); }
+    function buildScanUrl(code) { return WEBAPP_URL + '?code=' + encodeURIComponent(code) + '&v=' + Date.now(); }
     function showInFrame(url) {
       loading.style.display = 'flex';
       frame.classList.add('hidden');
-      frame.onload = () => {
-        loading.style.display = 'none';
-        frame.classList.remove('hidden');
-      };
+      frame.onload = () => { loading.style.display = 'none'; frame.classList.remove('hidden'); };
       frame.src = url;
     }
     function setDirectLink(url) { directBtn.href = url; }
 
-    // Auto-init iz URL-a (?code= ili ?product_code=)
+    // Health
+    healthBtn.href = WEBAPP_URL + '?health=1';
+
+    // Init iz URL-a
     (function init() {
       const fromUrl = normCode(qp('code') || qp('product_code'));
       if (fromUrl) {
         codeInput.value = fromUrl;
-        const u = buildScanUrl(fromUrl);
-        setDirectLink(u);
-        showInFrame(u);
+        const scanUrl = buildScanUrl(fromUrl);
+        setDirectLink(scanUrl);
+        showInFrame(scanUrl);
       }
     })();
 
-    // Dugme “Otvori”
+    // “Otvori”
     openBtn.addEventListener('click', () => {
       const code = normCode(codeInput.value);
       if (!code) { alert('Upiši šifru proizvoda (tačno kao u koloni H).'); return; }
-      const url = buildScanUrl(code);
-      setDirectLink(url);
-      showInFrame(url);
+      const scanUrl = buildScanUrl(code);
+      setDirectLink(scanUrl);
+      showInFrame(scanUrl);
       const u = new URL(window.location.href);
       u.searchParams.set('code', code);
       history.replaceState(null, '', u.toString());
