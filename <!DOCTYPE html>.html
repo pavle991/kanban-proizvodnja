@@ -2,105 +2,464 @@
 <html lang="sr">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Skener statusa proizvoda</title>
+  <title>Kanban Proizvodnje - Moderno</title>
+  <meta http-equiv="refresh" content="600">
   <style>
-    :root { color-scheme: light dark; }
-    body { margin:0; font-family: system-ui,-apple-system,BlinkMacSystemFont,sans-serif; background:#f5f7fb; color:#111; }
-    .wrap { max-width: 900px; margin: 0 auto; padding: 12px; }
-    header { display:flex; align-items:center; justify-content:space-between; gap:12px; }
-    h1 { font-size:1.1rem; margin:0; }
-    .bar { display:flex; gap:8px; width:100%; }
-    input[type="text"] { flex:1; padding:10px 12px; font-size:1rem; border-radius:8px; border:1px solid #cfd6e4; }
-    button, a.btn { padding:10px 14px; font-size:1rem; border-radius:8px; border:0; background:#2563eb; color:#fff; text-decoration:none; cursor:pointer; }
-    button.secondary, a.secondary { background:#e5e7eb; color:#111; }
-    .info { font-size:0.9rem; color:#444; margin:8px 0 0; }
-    .frame-wrap { height: calc(100vh - 120px); margin-top: 10px; background:#fff; border:1px solid #e5e7eb; border-radius:10px; overflow:hidden; }
-    iframe { width:100%; height:100%; border:0; }
-    .loading { display:none; align-items:center; justify-content:center; height:100%; color:#666; font-size:0.95rem; }
-    .hidden { display:none !important; }
+    :root {
+      --font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      --bg: #f7f8fc;
+      --surface: #ffffff;
+      --col-bg: #f1f3f9;
+      --text-primary: #1a1b25;
+      --text-secondary: #5a6178;
+      --border-color: #e4e6eb;
+      --primary: #4a69ff;
+      --primary-light: #eef2ff;
+      --urgent: #ff9f43;
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0,0,0,0.06);
+      --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+    }
+    html { font-size: 16px; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: var(--font-family);
+      margin: 0;
+      padding: 1rem;
+      background: var(--bg);
+      color: var(--text-primary);
+      overflow-x: hidden;
+    }
+    body.modal-open { overflow: hidden; }
+
+    /* Header & Controls */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 1rem;
+      padding: 0 0.5rem;
+    }
+    h2 { margin: 0; font-size: 1.75rem; letter-spacing: -.5px; }
+    .controls { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+    .controls button {
+      padding: 0.5rem 1rem;
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      background: var(--surface);
+      transition: all 0.2s ease;
+    }
+    .controls button:hover { background: #f5f5f5; border-color: #ccc; }
+    .status-banner {
+      display: inline-block;
+      padding: 0.5rem 0.8rem;
+      border-radius: 8px;
+      background: var(--primary-light);
+      border: 1px solid #dbe2ff;
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: var(--primary);
+    }
+    .legend { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.3rem 0.8rem;
+      border-radius: 999px;
+      background: var(--surface);
+      border: 1.5px solid var(--border-color);
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .legend-item:hover { background-color: #f5f5f5; }
+    .legend-item.active {
+      background-color: var(--primary);
+      color: white;
+      border-color: var(--primary);
+    }
+    .legend-color { width: 12px; height: 12px; border-radius: 4px; }
+    .legend-item.active .legend-color { border: 2px solid rgba(255,255,255,0.5); }
+
+    /* Board Layout */
+    .board-wrapper {
+      width: 100%;
+      height: calc(100vh - 120px); /* Podesite visinu po potrebi */
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding-bottom: 1rem;
+    }
+    .board {
+      display: grid;
+      grid-auto-columns: 280px; /* Fiksna širina kolona */
+      grid-auto-flow: column;
+      gap: 1rem;
+      height: 100%;
+    }
+    .column {
+      background: var(--col-bg);
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      padding: 0.75rem;
+      height: 100%;
+      overflow: hidden;
+    }
+    .col-header {
+      font-weight: 600;
+      margin-bottom: 1rem;
+      flex-shrink: 0;
+      font-size: 1rem;
+      color: var(--text-primary);
+      cursor: pointer;
+      padding: 0.5rem;
+      border-radius: 8px;
+      transition: background-color 0.2s ease;
+    }
+    .col-header:hover { background: rgba(0,0,0,0.05); }
+    .col-header-top { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+    .column-count {
+      color: var(--text-secondary);
+      font-weight: 500;
+      font-size: 0.85rem;
+      background: #e0e4f0;
+      padding: 2px 8px;
+      border-radius: 999px;
+    }
+    .cards {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      overflow-y: auto;
+      padding-right: 6px; /* za skrolbar */
+      margin-right: -6px;
+    }
+    /* Custom scrollbar */
+    .cards::-webkit-scrollbar { width: 6px; }
+    .cards::-webkit-scrollbar-track { background: transparent; }
+    .cards::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
+    .cards::-webkit-scrollbar-thumb:hover { background: #bbb; }
+
+    /* Card Design */
+    .card {
+      background: var(--surface);
+      border-radius: 8px;
+      padding: 0.75rem;
+      box-shadow: var(--shadow-sm);
+      position: relative;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: all 0.2s ease;
+      border-left: 4px solid; /* Bice obojeno preko JS */
+    }
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+    .card.done { opacity: 0.8; background: #f9fafb; }
+    .card.urgent {
+      border-left-color: var(--urgent);
+      box-shadow: 0 0 0 1px var(--urgent);
+    }
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 0.5rem;
+    }
+    .card-title {
+      font-weight: 600;
+      line-height: 1.3;
+      color: var(--text-primary);
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      padding-right: 0.5rem;
+    }
+    .card-icon {
+      flex-shrink: 0;
+      width: 20px;
+      height: 20px;
+      color: var(--text-secondary);
+    }
+    .card-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+    }
+    .card-code { font-weight: 500; }
+    .card-days { font-weight: 600; background: #eee; padding: 2px 6px; border-radius: 4px; }
+
+    /* Modal Design */
+    .modal, .status-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(20, 22, 36, 0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s ease, visibility 0.3s ease;
+    }
+    .modal.show, .status-modal.show {
+      opacity: 1;
+      visibility: visible;
+    }
+    .modal-content, .status-content {
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 1.5rem;
+      width: 90%;
+      max-width: 500px;
+      position: relative;
+      box-shadow: var(--shadow-md);
+      transform: scale(0.95);
+      transition: transform 0.3s ease;
+    }
+    .modal.show .modal-content, .status-modal.show .status-content {
+        transform: scale(1);
+    }
+    .close {
+      position: absolute;
+      top: 10px;
+      right: 12px;
+      cursor: pointer;
+      font-size: 1.5rem;
+      line-height: 1;
+      border-radius: 50%;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg);
+      color: var(--text-secondary);
+      transition: all 0.2s ease;
+    }
+    .close:hover { background: #e5e5e5; color: var(--text-primary); }
+    .modal-content h3, .status-content h3 { margin: 0 0 1rem; }
+    .modal-content p, .status-content p { margin: 0.5rem 0; line-height: 1.6; }
+    .modal-content strong { color: var(--text-primary); }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <header>
-      <h1>Skener statusa proizvoda</h1>
-    </header>
-
-    <div class="bar">
-      <input id="codeInput" type="text" placeholder="Unesi šifru proizvoda (npr. Suknja SS 25/323)" />
-      <button id="openBtn">Otvori</button>
-      <a id="directBtn" class="btn secondary" href="#" target="_blank" rel="noopener">Direktno</a>
-    </div>
-    <div class="info">Možeš i direktno da otvoriš: link prihvata <code>?code=...</code> ili <code>?product_code=...</code>.</div>
-
-    <div class="frame-wrap">
-      <div id="loading" class="loading">Učitavanje forme…</div>
-      <iframe id="scanFrame" title="Scanner" class="hidden"></iframe>
+  <div class="header">
+    <h2>Kanban Proizvodnje</h2>
+    <div class="controls">
+      <span class="status-banner" id="status-banner">Učitavanje…</span>
+      <div class="legend" id="legend"></div>
+      <button id="reloadBtn">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/></svg>
+        Učitaj
+      </button>
     </div>
   </div>
 
+  <div class="board-wrapper">
+    <div class="board" id="board">
+      </div>
+  </div>
+
+  <div id="modal" class="modal"></div>
+  <div id="statusModal" class="status-modal"></div>
+
   <script>
-    // Tvoj Apps Script Web App URL (EXEC)
-    const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbyl5_WP4mLIogkidJiUxugn89XUFgjyboPr2KgA7_AkN-V2qK_xT1Jlo_BuNTEtRZ7Z/exec';
+    const endpoint = "https://script.google.com/macros/s/AKfycbwhKEBafSBhrjNYc5oAosp6kRW4q0aInuTBt-tAZKdXARZskavi1qJdYWJRuLLRZnpTmw/exec";
+    let allItems = [];
+    const STATUSES = [
+      'Proizvodnja', 'Završeno u proizvodnji', 'Vez',
+      'Završeno na vezu', 'Pakovanje', 'Spremno za Magacin'
+    ];
+    let currentFilter = 'Sve';
 
-    const $ = sel => document.querySelector(sel);
-    const codeInput = $('#codeInput');
-    const openBtn = $('#openBtn');
-    const directBtn = $('#directBtn');
-    const frame = $('#scanFrame');
-    const loading = $('#loading');
+    const ICONS = {
+      camera: `<svg class="card-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3"></circle></svg>`,
+      noCamera: `<svg class="card-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 2l20 20"/><path d="M12 13a3 3 0 0 1-3-3m-1.5-5a9.3 9.3 0 0 0-4.08 1.08L3 7H2v5"/><path d="M16.5 4H20v3.5l-1.68-1.68c-.89.6-1.87 1.05-2.92 1.32"/><path d="M22 12c0 4.42-3.58 8-8 8s-6.9-2.7-7.78-6.42"/></svg>`
+    };
 
-    function getQueryParam(name) {
-      const url = new URL(window.location.href);
-      return url.searchParams.get(name);
-    }
-    function currentCode() {
-      return (codeInput.value || '').trim();
-    }
-    function buildScanUrl(code) {
-      return WEBAPP_URL + '?action=scan&product_code=' + encodeURIComponent(code);
-    }
-    function showInFrame(url) {
-      loading.style.display = 'flex';
-      frame.classList.add('hidden');
-      frame.onload = () => {
-        loading.style.display = 'none';
-        frame.classList.remove('hidden');
-      };
-      frame.src = url;
-    }
-    function setDirectLink(url) {
-      directBtn.href = url;
+    function initializeBoard() {
+      const board = document.getElementById('board');
+      board.innerHTML = '';
+      STATUSES.forEach(status => {
+        const column = document.createElement('div');
+        column.className = 'column';
+        column.dataset.status = status;
+        column.innerHTML = `
+          <div class="col-header" onclick="showStatusInfo('${status}')">
+            <div class="col-header-top">
+              <span>${status}</span>
+              <span class="column-count" id="count-${status}"></span>
+            </div>
+          </div>
+          <div class="cards"></div>`;
+        board.appendChild(column);
+      });
     }
 
-    // Init from URL (?code=… ili ?product_code=…)
-    (function init() {
-      const code = getQueryParam('code') || getQueryParam('product_code');
-      if (code) {
-        codeInput.value = code;
-        const scanUrl = buildScanUrl(code);
-        setDirectLink(scanUrl);
-        showInFrame(scanUrl);
+    function fetchAndRender() {
+      document.getElementById('status-banner').textContent = 'Učitavanje...';
+      fetch(`${endpoint}?_=${Date.now()}`)
+        .then(response => {
+          if (!response.ok) throw new Error(`Greška status: ${response.status}`);
+          return response.json();
+        })
+        .then(data => {
+          allItems = data.items || [];
+          buildLegend(allItems);
+          renderBoard(allItems);
+          document.getElementById('status-banner').textContent = `Učitano ${allItems.length} proizvoda.`;
+        })
+        .catch(error => {
+          document.getElementById('status-banner').textContent = `Greška: ${error.message}`;
+        });
+    }
+
+    function buildLegend(items) {
+      const counts = items.reduce((acc, i) => {
+        const p = i.proizvodnja || 'Nepoznato';
+        acc[p] = (acc[p] || 0) + 1;
+        return acc;
+      }, {});
+
+      const legend = document.getElementById('legend');
+      legend.innerHTML = '';
+      const sortedKeys = ['Sve', ...Object.keys(counts).sort()];
+
+      sortedKeys.forEach(prod => {
+        const count = prod === 'Sve' ? items.length : counts[prod];
+        const el = document.createElement('div');
+        el.className = `legend-item ${currentFilter === prod ? 'active' : ''}`;
+        const color = prod === 'Sve' ? '#888' : colorFromString(prod);
+        el.innerHTML = `<div class="legend-color" style="background:${color}"></div>${prod} (${count})`;
+        el.onclick = () => {
+          currentFilter = prod;
+          renderBoard(allItems);
+          buildLegend(items); // Re-render legend to update active state
+        };
+        legend.appendChild(el);
+      });
+    }
+
+    function renderBoard(items) {
+      document.querySelectorAll('.column .cards').forEach(col => col.innerHTML = '');
+
+      const filteredItems = items.filter(item =>
+        currentFilter === 'Sve' || item.proizvodnja === currentFilter
+      );
+
+      filteredItems.forEach(item => {
+        const status = (item.status || '').trim();
+        const column = document.querySelector(`.column[data-status="${status}"] .cards`);
+        if (!column) return;
+
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.style.borderColor = colorFromString(item.proizvodnja || '');
+        if (status === 'Spremno za Magacin') card.classList.add('done');
+        if (item.alert) card.classList.add('urgent');
+
+        card.innerHTML = `
+          <div class="card-header">
+            <div class="card-title">${item.name || item.product_code || '-'}</div>
+            <div title="${item.slikan ? 'Slikano' : 'Nije slikano'}">${item.slikan ? ICONS.camera : ICONS.noCamera}</div>
+          </div>
+          <div class="card-footer">
+            <span class="card-code">${item.product_code || '-'}</span>
+            <span class="card-days">${item.days_since_publish || 0}d</span>
+          </div>`;
+
+        card.onclick = () => showModal(item);
+        column.appendChild(card);
+      });
+
+      STATUSES.forEach(s => {
+        const count = document.querySelectorAll(`.column[data-status="${s}"] .card`).length;
+        const el = document.getElementById(`count-${s}`);
+        if (el) el.textContent = count;
+      });
+    }
+
+    function showStatusInfo(status) {
+      const itemsInStatus = allItems.filter(i => (i.status || '').trim() === status);
+      if (!itemsInStatus.length) return;
+
+      const total = itemsInStatus.length;
+      const isk = itemsInStatus.reduce((a, i) => a + (Number(i.iskrojeno) || 0), 0);
+      const sl = itemsInStatus.filter(i => !!i.slikan).length;
+      const totalValue = itemsInStatus.reduce((a, i) => a + (Number(i.total_price) || 0), 0);
+      const k = (totalValue / 1000).toFixed(1) + 'k';
+
+      const modal = document.getElementById('statusModal');
+      modal.innerHTML = `
+        <div class="status-content">
+          <div class="close" onclick="hideStatus()">✕</div>
+          <h3>${status} – Statistika</h3>
+          <p><strong>Ukupno artikala:</strong> ${total}</p>
+          <p><strong>Ukupno iskrojeno:</strong> ${isk}</p>
+          <p><strong>Slikano:</strong> ${sl}</p>
+          <p><strong>Ukupna vrednost:</strong> ~${k} EUR</p>
+        </div>`;
+      modal.classList.add('show');
+      document.body.classList.add('modal-open');
+    }
+
+    function hideStatus() {
+      const modal = document.getElementById('statusModal');
+      modal.classList.remove('show');
+      document.body.classList.remove('modal-open');
+    }
+
+    function showModal(item) {
+      const m = document.getElementById('modal');
+      const total = (Number(item.total_price) || 0).toFixed(2);
+      m.innerHTML = `
+        <div class="modal-content">
+          <div class="close" onclick="hideModal()">✕</div>
+          <h3>${item.name || item.product_code || '-'}</h3>
+          <p><strong>Šifra:</strong> ${item.product_code || '-'}</p>
+          <p><strong>Status:</strong> ${item.status || '-'}</p>
+          <p><strong>Proizvodnja:</strong> ${item.proizvodnja || '-'}</p>
+          <p><strong>Dobavljač:</strong> ${item.dobavljac || '-'}</p>
+          <p><strong>Iskrojeno:</strong> ${item.iskrojeno || 0}</p>
+          <p><strong>Ukupna vrednost:</strong> ${total} EUR</p>
+          <p><strong>Datum objave:</strong> ${item.datum_objave || '-'}</p>
+          <p><strong>Slikano:</strong> ${item.slikan ? 'Da' : 'Ne'}</p>
+        </div>`;
+      m.classList.add('show');
+      document.body.classList.add('modal-open');
+    }
+
+    function hideModal() {
+      const modal = document.getElementById('modal');
+      modal.classList.remove('show');
+      document.body.classList.remove('modal-open');
+    }
+
+    function colorFromString(str) {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+        hash &= hash;
       }
-    })();
+      return `hsl(${Math.abs(hash) % 360}, 65%, 55%)`;
+    }
 
-    // Dugme "Otvori"
-    openBtn.addEventListener('click', () => {
-      const code = currentCode();
-      if (!code) { alert('Upiši šifru proizvoda.'); return; }
-      const scanUrl = buildScanUrl(code);
-      setDirectLink(scanUrl);
-      showInFrame(scanUrl);
-      // update URL (bez reloada)
-      const u = new URL(window.location.href);
-      u.searchParams.set('code', code);
-      history.replaceState(null, '', u.toString());
-    });
-
-    // Enter u inputu
-    codeInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') openBtn.click();
+    document.getElementById('reloadBtn').onclick = fetchAndRender;
+    document.addEventListener('DOMContentLoaded', () => {
+      initializeBoard();
+      fetchAndRender();
+      setInterval(fetchAndRender, 600000);
     });
   </script>
 </body>
