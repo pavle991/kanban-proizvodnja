@@ -135,8 +135,8 @@
   <div id="statusModal" class="status-modal"></div>
 
   <script>
-    // TVOJ NAJNOVIJI URL JE OVDE:
-    const endpoint = "https://script.google.com/macros/s/AKfycbzrZ88fdZg6H8f8djLFsSRx8nnK3W2pOYPMHPjB7D5HDDjdtOkuAMN2_kMBtwz9Xmvg/exec";
+    // TVOJ NAJNOVIJI I ISPRAVNI URL:
+    const endpoint = "https://script.google.com/macros/s/AKfycbwGU5a1sj7JoyDRZV6QiTq9VcBHzHauO4zbiPoQ8-9iLeQg66wQKnHKnbxCTMvpUSUA/exec";
     
     let allItems = [];
     const STATUSES = ['Proizvodnja','Završeno u proizvodnji','Vez','Završeno na vezu','Pakovanje','Spremno za Magacin'];
@@ -262,7 +262,7 @@
 
     function updateProductSchedule(productId, date) {
       document.getElementById('status-banner').textContent = `Otvaram prozor za upis datuma za ${productId}...`;
-      const url = `${endpoint}?action=showCalendarPicker&productId=${encodeURIComponent(productId)}&date=${date}`;
+      const url = `${endpoint}?action=saveCalendarDate&productId=${encodeURIComponent(productId)}&date=${date}`;
       window.open(url, '_blank', 'width=400,height=200,noopener,noreferrer');
       setTimeout(() => {
         if (document.getElementById('status-banner').textContent.includes('Otvaram prozor')) {
@@ -279,8 +279,6 @@
     }
     
     function showModalInfo(status) {
-        // Logika za prikaz statistike kolone. Možeš je proširiti po potrebi.
-        console.log("Prikaz info za status:", status);
         const itemsInStatus = allItems.filter(i => (i.status || '').trim() === status);
         if (!itemsInStatus.length) return;
         const total = itemsInStatus.length;
