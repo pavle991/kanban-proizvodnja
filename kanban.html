@@ -54,6 +54,8 @@
     .controls button, .controls select, .controls input { padding: 0.5rem 1rem; font-size: 0.9rem; font-family: inherit; color: var(--text-primary); font-weight: 500; cursor: pointer; border-radius: 8px; border: 1px solid var(--border-color); background: var(--input-bg); transition: all 0.2s ease; }
     #searchInput { width: 180px; cursor: text; }
     .status-banner { display: inline-block; padding: 0.5rem 0.8rem; border-radius: 8px; background: var(--primary-light); border: 1px solid #dbe2ff; font-size: 0.9rem; font-weight: 500; color: var(--primary); transition: all 0.3s ease; }
+    .toggle-switch { display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; font-weight: 500; color: var(--text-secondary); cursor: pointer; }
+    .toggle-switch input { margin: 0; cursor: pointer; }
 
     /* Kanban Styles */
     .legend { display: flex; flex-wrap: wrap; gap: 0.5rem; }
@@ -88,36 +90,13 @@
     .modal.show .modal-content, .status-modal.show .status-content { transform: scale(1) translateY(0); }
     .close { position: absolute; top: 10px; right: 12px; cursor: pointer; font-size: 1.5rem; line-height: 1; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: var(--bg); color: var(--text-secondary); transition: all 0.2s ease; }
     
-    /* NOVO: Stilovi za TV Mod (Fullscreen) */
-    body.tv-mode .board {
-      grid-auto-columns: 1fr;
-      grid-template-columns: repeat(6, 1fr);
-      width: 100%;
-      gap: 0.5rem;
-    }
-    body.tv-mode .board-wrapper {
-      overflow-x: hidden;
-    }
-    body.tv-mode .column {
-        padding: 0.5rem;
-    }
-    body.tv-mode .card {
-        padding: 0.6rem;
-        font-size: 0.8rem;
-    }
-    body.tv-mode .card-title {
-        -webkit-line-clamp: 3; /* Dozvoli više redova za naslov */
-    }
-    body.tv-mode .card-footer {
-        font-size: 0.75rem;
-        flex-direction: column; /* Stavi šifru i dane jedan ispod drugog */
-        align-items: flex-start;
-        gap: 2px;
-    }
-    body.tv-mode .col-header {
-        font-size: 0.9rem;
-        margin-bottom: 0.75rem;
-    }
+    .tv-mode .board { grid-auto-columns: minmax(150px, 1fr); grid-template-columns: repeat(6, 1fr); width: 100%; gap: 0.5rem; }
+    .tv-mode .board-wrapper { overflow-x: hidden; }
+    .tv-mode .column { padding: 0.5rem; }
+    .tv-mode .card { padding: 0.6rem; font-size: 0.8rem; }
+    .tv-mode .card-title { -webkit-line-clamp: 3; }
+    .tv-mode .card-footer { font-size: 0.75rem; flex-direction: column; align-items: flex-start; gap: 2px; }
+    .tv-mode .col-header { font-size: 0.9rem; margin-bottom: 0.75rem; }
   </style>
 </head>
 <body>
@@ -133,6 +112,12 @@
       </select>
       <span class="status-banner" id="status-banner">Učitavanje…</span>
       <div class="legend" id="legend"></div>
+      
+      <div class="toggle-switch">
+          <input type="checkbox" id="showArchivedToggle">
+          <label for="showArchivedToggle">Prikaži arhivirane</label>
+      </div>
+
       <button id="themeToggleBtn">🌙</button>
       <button id="reloadBtn">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/></svg>
@@ -162,28 +147,48 @@
   <div id="statusModal" class="status-modal"></div>
 
   <script>
-    // TVOJ NAJNOVIJI URL JE OVDE:
-    const endpoint = "https://script.google.com/macros/s/AKfycbxxygYqmi0b6v0GegpV6qhe3hCWn9fLuOE84KLWbAdNNvYF1QY4Ok-ib2-i6mlcHtia/exec";
+    const endpoint = "https://script.google.com/macros/s/AKfycbxzbfGGw3ihPfrFyPZ7KFBjCl2EYEATDj-PhAWgnfSraY6zW3DcCo8jMiPPfe6ZvFI3/exec";
     
     let allItems = [];
     const STATUSES = ['Proizvodnja','Završeno u proizvodnji','Vez','Završeno na vezu','Pakovanje','Spremno za Magacin'];
     let currentFilter = 'Sve';
     let calendar;
 
+    // IZMENJENO: Glavna funkcija za ažuriranje prikaza
+    function updateUI() {
+        const showArchived = document.getElementById('showArchivedToggle').checked;
+        let itemsToDisplay = allItems;
+
+        // NOVA LOGIKA: Filtriraj po "arhivirano" checkboxu
+        if (!showArchived) {
+            itemsToDisplay = allItems.filter(item => !item.arhivirano);
+        }
+        
+        renderBoard(itemsToDisplay);
+        buildLegend(itemsToDisplay);
+    }
+
     function fetchAndRender() {
+      if (endpoint.includes("NALEPITI")) {
+        document.getElementById('status-banner').textContent = "Greška: URL skripte nije unet u HTML fajl.";
+        return;
+      }
       document.getElementById('status-banner').textContent = 'Učitavanje...';
       fetch(`${endpoint}?_=${Date.now()}`)
         .then(response => response.json())
         .then(data => {
           if (data.error) throw new Error(data.error);
           allItems = data.items || [];
-          buildLegend(allItems);
-          renderBoard(allItems);
+          updateUI(); // Koristimo novu glavnu funkciju
           renderCalendarEvents(allItems);
+          populateUnscheduledList(allItems); // Ažuriramo i listu za kalendar
           document.getElementById('status-banner').textContent = `Učitano ${allItems.length} proizvoda.`;
         })
         .catch(error => { document.getElementById('status-banner').textContent = `Greška: ${error.message}`; });
     }
+    
+    // ... ostatak JavaScript koda ostaje skoro isti ...
+    // ... jedina izmena je u event listener-u na dnu ...
 
     function initializeBoard() {
       const board = document.getElementById('board');
@@ -220,10 +225,11 @@
       });
 
       STATUSES.forEach(s => {
-        const columnCards = document.querySelector(`.column[data-status="${s}"] .cards`);
-        const count = columnCards.children.length;
+        const count = document.querySelectorAll(`.column[data-status="${s}"] .card`).length;
         document.getElementById(`count-${s}`).textContent = count;
-        if (count === 0) columnCards.innerHTML = `<div class="empty-message">Nema kartica</div>`;
+        if (count === 0 && document.querySelector(`.column[data-status="${s}"] .cards`)) {
+          document.querySelector(`.column[data-status="${s}"] .cards`).innerHTML = `<div class="empty-message">Nema kartica</div>`;
+        }
       });
     }
 
@@ -236,7 +242,7 @@
         const el = document.createElement('div');
         el.className = `legend-item ${currentFilter === prod ? 'active' : ''}`;
         el.innerHTML = `<div class="legend-color" style="background:${colorFromString(prod)}"></div>${prod} (${count})`;
-        el.onclick = () => { currentFilter = prod; renderBoard(allItems); buildLegend(items); };
+        el.onclick = () => { currentFilter = prod; updateUI(); };
         legend.appendChild(el);
       });
     }
@@ -274,7 +280,7 @@
       if (!calendar) return;
       calendar.getEvents().forEach(event => event.remove());
       const events = items
-        .filter(item => item.datumSlikanja)
+        .filter(item => item.datumSlikanja && !item.arhivirano) // Ne prikazuj arhivirane ni na kalendaru
         .map(item => ({
           title: item.name || item.product_code,
           start: new Date(item.datumSlikanja).toISOString().split('T')[0],
@@ -288,7 +294,7 @@
     function populateUnscheduledList(items) {
       const listEl = document.getElementById('unscheduled-list');
       listEl.innerHTML = '';
-      const unscheduledItems = items.filter(item => !item.slikan && !item.datumSlikanja);
+      const unscheduledItems = items.filter(item => !item.slikan && !item.datumSlikanja && !item.arhivirano);
       if (unscheduledItems.length === 0) {
         listEl.innerHTML = '<p style="font-size: 0.9rem; color: var(--text-secondary);">Nema proizvoda za planiranje slikanja.</p>';
       } else {
@@ -320,7 +326,7 @@
     }
     
     function showModalInfo(status) {
-        const itemsInStatus = allItems.filter(i => (i.status || '').trim() === status);
+        const itemsInStatus = allItems.filter(i => (i.status || '').trim() === status && !i.arhivirano);
         if (!itemsInStatus.length) return;
         const total = itemsInStatus.length;
         const isk = itemsInStatus.reduce((a, i) => a + (Number(i.iskrojeno) || 0), 0);
@@ -351,11 +357,17 @@
       initializeCalendar();
       setInterval(fetchAndRender, 600000);
 
+      // Svi listeneri koji utiču na prikaz podataka sada pozivaju updateUI()
+      document.getElementById('reloadBtn').onclick = fetchAndRender;
+      document.getElementById('searchInput').addEventListener('input', updateUI);
+      document.getElementById('sortSelect').addEventListener('change', updateUI);
+      document.getElementById('showArchivedToggle').addEventListener('change', updateUI);
+
       const viewToggleBtn = document.getElementById('viewToggleBtn');
       const mainTitle = document.getElementById('main-title');
       const kanbanView = document.getElementById('kanbanView');
       const calendarView = document.getElementById('calendarView');
-      const kanbanControls = document.querySelectorAll('#searchInput, #sortSelect, #legend');
+      const kanbanControls = document.querySelectorAll('#searchInput, #sortSelect, #legend, #showArchivedToggle');
 
       viewToggleBtn.addEventListener('click', () => {
         const isKanbanVisible = !kanbanView.classList.contains('view-hidden');
@@ -375,7 +387,6 @@
         }
       });
 
-      // Logika za TV Mod (Fullscreen)
       const tvModeBtn = document.getElementById('tvModeBtn');
       tvModeBtn.addEventListener('click', () => {
         document.body.classList.toggle('tv-mode');
@@ -390,10 +401,6 @@
           document.body.classList.remove('tv-mode');
         }
       });
-
-      document.getElementById('reloadBtn').onclick = fetchAndRender;
-      document.getElementById('searchInput').addEventListener('input', () => renderBoard(allItems));
-      document.getElementById('sortSelect').addEventListener('change', () => renderBoard(allItems));
     });
   </script>
 </body>

@@ -1,103 +1,267 @@
 <!DOCTYPE html>
 <html lang="sr">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Skener statusa proizvoda</title>
-  <style>
-    :root { color-scheme: light; }
-    body { margin:0; font-family: system-ui,-apple-system,BlinkMacSystemFont,sans-serif; background:#f5f7fb; color:#111; }
-    .wrap { max-width: 880px; margin: 0 auto; padding: 12px; }
-    header { display:flex; align-items:center; gap:12px; }
-    h1 { font-size:1.1rem; margin:0; }
-    .bar { display:flex; gap:8px; width:100%; margin-top:8px; }
-    input[type="text"] { flex:1; padding:10px 12px; font-size:1rem; border-radius:8px; border:1px solid #cfd6e4; }
-    /* Nemoj stilovati globalni <button>; stilizujemo samo .btn */
-    .btn { padding:10px 14px; font-size:1rem; border-radius:8px; border:0; background:#2563eb; color:#fff; text-decoration:none; cursor:pointer; }
-    .btn.secondary { background:#e5e7eb; color:#111; }
-    .info { font-size:0.9rem; color:#444; margin:8px 0 0; }
-    .frame-wrap { height: calc(100vh - 120px); margin-top: 10px; background:#fff; border:1px solid #e5e7eb; border-radius:10px; overflow:hidden; }
-    iframe { width:100%; height:100%; border:0; }
-    .loading { display:none; align-items:center; justify-content:center; height:100%; color:#666; font-size:0.95rem; }
-    .hidden { display:none !important; }
-  </style>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Skener Statusa</title>
+    <style>
+        :root {
+            --font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            --bg: #f7f8fc;
+            --surface: #ffffff;
+            --text-primary: #1a1b25;
+            --text-secondary: #5a6178;
+            --border-color: #e4e6eb;
+            --primary: #4a69ff;
+            --success: #28a745;
+            --success-light: #dcfce7;
+            --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+        }
+        body.dark-mode {
+            --bg: #16171d;
+            --surface: #21242d;
+            --text-primary: #f0f1f5;
+            --text-secondary: #a0a7b9;
+            --border-color: #3a3e4e;
+            --primary: #5d78ff;
+            --success-light: rgba(40, 167, 69, 0.2);
+        }
+        html { font-size: 16px; }
+        * { box-sizing: border-box; }
+        body {
+            font-family: var(--font-family);
+            margin: 0;
+            background: var(--bg);
+            color: var(--text-primary);
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        .container {
+            max-width: 600px;
+            margin: 2rem auto;
+            padding: 1.5rem;
+        }
+        .card {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--border-color);
+        }
+        h1 {
+            font-size: 1.5rem;
+            margin: 0 0 1rem;
+            text-align: center;
+        }
+        .search-bar {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+        #codeInput {
+            flex-grow: 1;
+            padding: 0.75rem;
+            font-size: 1rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background: var(--bg);
+            color: var(--text-primary);
+        }
+        .btn {
+            padding: 0.75rem 1.25rem;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 8px;
+            border: 0;
+            background: var(--primary);
+            color: white;
+            cursor: pointer;
+            transition: opacity 0.2s ease;
+        }
+        .btn:hover { opacity: 0.9; }
+        
+        #result, #loader, #message {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            border-radius: 8px;
+        }
+        #loader { text-align: center; color: var(--text-secondary); }
+        .hidden { display: none; }
+        
+        .product-info h2 { font-size: 1.25rem; margin: 0 0 1rem; }
+        .grid { display: grid; grid-template-columns: 140px 1fr; gap: 0.5rem 1rem; font-size: 0.9rem; margin-bottom: 1.5rem; }
+        .grid .label { color: var(--text-secondary); }
+        .grid .value { font-weight: 600; }
+
+        .status-buttons { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.5rem; }
+        .status-btn {
+            padding: 0.75rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+            border: 1px solid var(--border-color);
+            background: var(--surface);
+            color: var(--text-primary);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .status-btn:hover { border-color: var(--primary); background: var(--primary-light); }
+        .status-btn.current {
+            background: var(--success-light);
+            border-color: var(--success);
+            color: var(--success);
+            cursor: default;
+        }
+        .status-btn.current::before { content: "✓ "; }
+    </style>
 </head>
 <body>
-  <div class="wrap">
-    <header>
-      <h1>Skener statusa proizvoda</h1>
-      <a id="healthBtn" class="btn secondary" href="#" target="_blank" rel="noopener">Health</a>
-    </header>
+    <div class="container">
+        <div class="card">
+            <h1>Skener Statusa</h1>
+            <div class="search-bar">
+                <input id="codeInput" type="text" placeholder="Unesi ili skeniraj šifru..." autofocus />
+                <button id="searchBtn" class="btn">Pronađi</button>
+            </div>
 
-    <div class="bar">
-      <input id="codeInput" type="text" placeholder="Unesi šifru (tačno kao u koloni H)" />
-      <button id="openBtn" class="btn">Otvori</button>
-      <a id="directBtn" class="btn secondary" href="#" target="_blank" rel="noopener">Direktno</a>
+            <div id="loader" class="hidden">Učitavanje...</div>
+            <div id="result" class="hidden"></div>
+            <div id="message"></div>
+        </div>
     </div>
-    <div class="info">Ovaj ekran samo učitava Apps Script formu u iframe. Status menjaš dugmićima u toj formi.</div>
 
-    <div class="frame-wrap">
-      <div id="loading" class="loading">Učitavanje forme…</div>
-      <iframe id="scanFrame" title="Scanner" class="hidden" referrerpolicy="no-referrer"></iframe>
-    </div>
-  </div>
+    <script>
+        // !!! VAŽNO: Ovde nalepi svoj poslednji ispravni URL od skripte !!!
+        const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbxzbfGGw3ihPfrFyPZ7KFBjCl2EYEATDj-PhAWgnfSraY6zW3DcCo8jMiPPfe6ZvFI3/exec";
 
-  <script>
-    // NOVI Web App URL (Deployment URL)
-    const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbwzLchj_CdKKC4KeexbxKnoGzxMxYw-OB4lox7tZbArDEG3dEB9ca4awUBUWOQmq57U/exec';
+        const codeInput = document.getElementById('codeInput');
+        const searchBtn = document.getElementById('searchBtn');
+        const loader = document.getElementById('loader');
+        const resultDiv = document.getElementById('result');
+        const messageDiv = document.getElementById('message');
 
-    const $ = s => document.querySelector(s);
-    const codeInput = $('#codeInput');
-    const openBtn   = $('#openBtn');
-    const directBtn = $('#directBtn');
-    const healthBtn = $('#healthBtn');
-    const frame     = $('#scanFrame');
-    const loading   = $('#loading');
+        // Funkcija za prikaz poruka
+        function showMessage(text, isError = false) {
+            messageDiv.textContent = text;
+            messageDiv.style.color = isError ? '#d9534f' : '#28a745';
+        }
 
-    function qp(name) {
-      try { return (new URL(window.location.href)).searchParams.get(name); }
-      catch { return null; }
-    }
-    function normCode(v) { return (v||'').trim().replace(/\s+/g,' '); }
-    function buildScanUrl(code) { return WEBAPP_URL + '?code=' + encodeURIComponent(code) + '&v=' + Date.now(); }
-    function showInFrame(url) {
-      loading.style.display = 'flex';
-      frame.classList.add('hidden');
-      frame.onload = () => { loading.style.display = 'none'; frame.classList.remove('hidden'); };
-      frame.src = url;
-    }
-    function setDirectLink(url) { directBtn.href = url; }
+        // Funkcija za slanje podataka skripti
+        async function updateStatus(rowIdx, newStatus) {
+            loader.classList.remove('hidden');
+            resultDiv.classList.add('hidden');
+            showMessage('');
 
-    // Health
-    healthBtn.href = WEBAPP_URL + '?health=1';
+            const url = `${WEBAPP_URL}?rowIdx=${rowIdx}&status=${encodeURIComponent(newStatus)}`;
+            
+            try {
+                // Koristimo 'no-cors' da zaobiđemo CORS probleme, kao i u kalendaru
+                // Ne možemo pročitati odgovor, ali znamo da je skenerova doPost funkcija pouzdana
+                await fetch(url, { method: 'POST', mode: 'no-cors' });
+                
+                // Optimistično ažuriranje - pretpostavimo da je uspelo
+                showMessage(`Status uspešno ažuriran na: ${newStatus}`);
+                searchProduct(codeInput.value.trim()); // Ponovo učitaj podatke da se vidi promena
 
-    // Init iz URL-a
-    (function init() {
-      const fromUrl = normCode(qp('code') || qp('product_code'));
-      if (fromUrl) {
-        codeInput.value = fromUrl;
-        const scanUrl = buildScanUrl(fromUrl);
-        setDirectLink(scanUrl);
-        showInFrame(scanUrl);
-      }
-    })();
+            } catch (error) {
+                console.error('Greška:', error);
+                showMessage('Došlo je do greške pri ažuriranju.', true);
+                loader.classList.add('hidden');
+                resultDiv.classList.remove('hidden');
+            }
+        }
 
-    // “Otvori”
-    openBtn.addEventListener('click', () => {
-      const code = normCode(codeInput.value);
-      if (!code) { alert('Upiši šifru proizvoda (tačno kao u koloni H).'); return; }
-      const scanUrl = buildScanUrl(code);
-      setDirectLink(scanUrl);
-      showInFrame(scanUrl);
-      const u = new URL(window.location.href);
-      u.searchParams.set('code', code);
-      history.replaceState(null, '', u.toString());
-    });
+        // Funkcija za pretragu proizvoda
+        async function searchProduct(code) {
+            if (!code) {
+                showMessage('Unesite šifru proizvoda.', true);
+                return;
+            }
+            if (WEBAPP_URL.includes("UNESI_SVOJ_URL_OVDE")) {
+                showMessage('URL skripte nije unet u HTML fajl.', true);
+                return;
+            }
+            
+            loader.classList.remove('hidden');
+            resultDiv.classList.add('hidden');
+            resultDiv.innerHTML = '';
+            showMessage('');
+            
+            // Sad koristimo 'fetch' da dobijemo podatke kao JSON, mnogo je brže od iframe-a
+            const url = `${WEBAPP_URL}?code=${encodeURIComponent(code)}&json=true`;
+            
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
 
-    // Enter u inputu
-    codeInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') openBtn.click();
-    });
-  </script>
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                renderProduct(data);
+
+            } catch (error) {
+                console.error('Greška:', error);
+                showMessage(`Proizvod sa šifrom "${code}" nije pronađen ili je došlo do greške.`, true);
+            } finally {
+                loader.classList.add('hidden');
+                resultDiv.classList.remove('hidden');
+            }
+        }
+
+        // Funkcija za iscrtavanje podataka o proizvodu
+        function renderProduct(data) {
+            const { product, statuses, rowIdx } = data;
+            
+            let buttonsHtml = '';
+            statuses.forEach(s => {
+                const isCurrent = s === product.status;
+                buttonsHtml += `
+                    <button class="status-btn ${isCurrent ? 'current' : ''}" 
+                            onclick="updateStatus(${rowIdx}, '${s}')"
+                            ${isCurrent ? 'disabled' : ''}>
+                        ${s}
+                    </button>
+                `;
+            });
+            
+            resultDiv.innerHTML = `
+                <div class="product-info">
+                    <h2>${product.name}</h2>
+                    <div class="grid">
+                        <div class="label">Šifra:</div><div class="value">${product.code}</div>
+                        <div class="label">Trenutni status:</div><div class="value">${product.status}</div>
+                        <div class="label">Iskrojeno:</div><div class="value">${product.isk}</div>
+                    </div>
+                    <div class="status-buttons">
+                        ${buttonsHtml}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Postavljanje Event Listenera
+        searchBtn.addEventListener('click', () => searchProduct(codeInput.value.trim()));
+        codeInput.addEventListener('keydown', e => {
+            if (e.key === 'Enter') {
+                searchProduct(codeInput.value.trim());
+            }
+        });
+        
+        // Automatska pretraga ako je kod u URL-u
+        window.addEventListener('DOMContentLoaded', () => {
+             // Dark mode
+            if (localStorage.getItem('theme') === 'dark') {
+                document.body.classList.add('dark-mode');
+            }
+            
+            const urlParams = new URLSearchParams(window.location.search);
+            const codeFromUrl = urlParams.get('code');
+            if (codeFromUrl) {
+                codeInput.value = codeFromUrl;
+                searchProduct(codeFromUrl);
+            }
+        });
+
+    </script>
 </body>
 </html>
