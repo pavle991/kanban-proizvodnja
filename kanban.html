@@ -80,12 +80,9 @@
     .modal-content, .status-content { background: var(--surface); border-radius: 12px; padding: 1.5rem; width: 90%; max-width: 500px; position: relative; box-shadow: var(--shadow-md); transform: scale(0.95) translateY(10px); transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); }
     .modal.show .modal-content, .status-modal.show .status-content { transform: scale(1) translateY(0); }
     .close { position: absolute; top: 10px; right: 12px; cursor: pointer; font-size: 1.5rem; line-height: 1; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: var(--bg); color: var(--text-secondary); transition: all 0.2s ease; }
-
-    /* NOVO: Stil za tekst na kalendaru */
-    .fc-event-title {
-      color: black !important; /* Crna boja teksta */
-      font-weight: 500;
-    }
+    .fc-event-title { color: black !important; font-weight: 500; }
+    body.tv-mode .board { grid-auto-columns: minmax(150px, 1fr); grid-template-columns: repeat(6, 1fr); width: 100%; }
+    body.tv-mode .board-wrapper { overflow-x: hidden; }
   </style>
 </head>
 <body>
@@ -105,6 +102,9 @@
       <button id="reloadBtn">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/></svg>
         Učitaj
+      </button>
+      <button id="tvModeBtn" title="Prikaz preko celog ekrana">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
       </button>
     </div>
   </div>
@@ -143,6 +143,7 @@
           allItems = data.items || [];
           buildLegend(allItems);
           renderBoard(allItems);
+          renderCalendarEvents(allItems);
           document.getElementById('status-banner').textContent = `Učitano ${allItems.length} proizvoda.`;
         })
         .catch(error => { document.getElementById('status-banner').textContent = `Greška: ${error.message}`; });
@@ -221,9 +222,51 @@
           const scheduledDate = info.event.startStr.split('T')[0];
           updateProductSchedule(productId, scheduledDate);
           info.draggedEl.remove();
+        },
+        eventClick: function(info) {
+          info.jsEvent.preventDefault();
+          const clickedProductId = info.event.extendedProps.productId;
+          const product = allItems.find(item => item.product_code === clickedProductId);
+          if (product) {
+            showModal(product);
+          } else {
+            alert('Nije moguće pronaći detalje za ovaj proizvod.');
+          }
         }
       });
       calendar.render();
+    }
+    
+    // IZMENJENA FUNKCIJA SA DIJAGNOSTIKOM
+    function renderCalendarEvents(items) {
+      if (!calendar) return;
+      calendar.getEvents().forEach(event => event.remove());
+
+      // --- KORAK ZA DEBUGIRANJE ---
+      // 1. Filtriramo da vidimo koji proizvodi uopšte imaju datum
+      const itemsWithDate = items.filter(item => item.datumSlikanja);
+      
+      // 2. Ispisujemo ih u konzolu da vidimo šta smo dobili iz skripte
+      console.log("Proizvodi sa datumom slikanja:", itemsWithDate);
+      
+      const events = itemsWithDate.map(item => {
+        // Kreiramo događaj za svaki proizvod
+        const eventObject = {
+          title: item.name || item.product_code,
+          start: new Date(item.datumSlikanja).toISOString().split('T')[0],
+          extendedProps: { productId: item.product_code },
+          backgroundColor: item.slikan ? '#28a745' : '#4a69ff',
+          borderColor: item.slikan ? '#28a745' : '#4a69ff'
+        };
+        return eventObject;
+      });
+      
+      // 3. Ispisujemo formatirane događaje pre dodavanja na kalendar
+      console.log("Događaji koji se dodaju na kalendar:", events);
+
+      if (events.length > 0) {
+        calendar.addEventSource(events);
+      }
     }
 
     function populateUnscheduledList(items) {
@@ -313,6 +356,21 @@
           mainTitle.textContent = 'Kanban Proizvodnje';
           viewToggleBtn.textContent = '📅 Kalendar Slikanja';
           kanbanControls.forEach(c => c.style.display = 'flex');
+        }
+      });
+
+      const tvModeBtn = document.getElementById('tvModeBtn');
+      tvModeBtn.addEventListener('click', () => {
+        document.body.classList.toggle('tv-mode');
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen().catch(console.error);
+        } else {
+          document.exitFullscreen();
+        }
+      });
+      document.addEventListener('fullscreenchange', () => {
+        if (!document.fullscreenElement) {
+          document.body.classList.remove('tv-mode');
         }
       });
 
