@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+  <meta charset="utf-8" />
+  <title>Kanban i Kalendar</title>
+  
+  <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.14/index.global.min.js'></script>
+
+  <style>
+    :root {
+      --font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      --bg: #f7f8fc;
+      --surface: #ffffff;
+      --col-bg: #f1f3f9;
+      --text-primary: #1a1b25;
+      --text-secondary: #5a6178;
+      --border-color: #e4e6eb;
+      --input-bg: #ffffff;
+      --primary: #4a69ff;
+      --primary-light: #eef2ff;
+      --urgent: #ff9f43;
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0,0,0,0.06);
+      --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+    }
+    body.dark-mode {
+      --bg: #16171d;
+      --surface: #21242d;
+      --col-bg: #1d1f26;
+      --text-primary: #f0f1f5;
+      --text-secondary: #a0a7b9;
+      --border-color: #3a3e4e;
+      --input-bg: #2a2d38;
+      --primary: #5d78ff;
+      --primary-light: rgba(93, 120, 255, 0.15);
+    }
+
+    html { font-size: 16px; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: var(--font-family);
+      margin: 0;
+      padding: 1rem;
+      background: var(--bg);
+      color: var(--text-primary);
+      overflow-x: hidden;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+    body.modal-open { overflow: hidden; }
+
+    /* Header & Controls */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 1rem;
+      padding: 0 0.5rem;
+      flex-wrap: wrap;
+    }
+    h2 { margin: 0; font-size: 1.75rem; letter-spacing: -.5px; }
+    .controls { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+    .controls button, .controls select, .controls input {
+      padding: 0.5rem 1rem;
+      font-size: 0.9rem;
+      font-family: inherit;
+      color: var(--text-primary);
+      font-weight: 500;
+      cursor: pointer;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      background: var(--input-bg);
+      transition: all 0.2s ease;
+    }
+    .controls button:hover, .controls select:hover { background: #f5f5f5; border-color: #ccc; }
+    body.dark-mode .controls button:hover, body.dark-mode .controls select:hover { background: #3a3e4e; }
+
+    #searchInput { width: 180px; cursor: text; }
+
+    .status-banner {
+      display: inline-block;
+      padding: 0.5rem 0.8rem;
+      border-radius: 8px;
+      background: var(--primary-light);
+      border: 1px solid #dbe2ff;
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: var(--primary);
+      transition: all 0.3s ease;
+    }
+    body.dark-mode .status-banner { border-color: rgba(93, 120, 255, 0.4); }
+
+    .legend { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    .legend-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0.8rem; border-radius: 999px; background: var(--surface); border: 1.5px solid var(--border-color); font-size: 0.85rem; font-weight: 500; cursor: pointer; transition: all 0.2s ease; }
+    .legend-item:hover { background-color: #f5f5f5; }
+    body.dark-mode .legend-item:hover { background-color: #3a3e4e; }
+    .legend-item.active { background-color: var(--primary); color: white; border-color: var(--primary); }
+    .legend-color { width: 12px; height: 12px; border-radius: 4px; }
+    .legend-item.active .legend-color { border: 2px solid rgba(255,255,255,0.5); }
+
+    /* KANBAN POGLED */
+    .board-wrapper { width: 100%; height: calc(100vh - 120px); overflow-x: auto; overflow-y: hidden; padding-bottom: 1rem; }
+    .board { display: grid; grid-auto-columns: 280px; grid-auto-flow: column; gap: 1rem; height: 100%; }
+    .column { background: var(--col-bg); border-radius: 12px; display: flex; flex-direction: column; padding: 0.75rem; height: 100%; overflow: hidden; transition: background-color 0.3s ease; }
+    .col-header { font-weight: 600; margin-bottom: 1rem; flex-shrink: 0; font-size: 1rem; color: var(--text-primary); cursor: pointer; padding: 0.5rem; border-radius: 8px; transition: background-color 0.2s ease; }
+    .col-header:hover { background: rgba(0,0,0,0.05); }
+    body.dark-mode .col-header:hover { background: rgba(255,255,255,0.05); }
+    .col-header-top { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+    .column-count { color: var(--text-secondary); font-weight: 500; font-size: 0.85rem; background: #e0e4f0; padding: 2px 8px; border-radius: 999px; }
+    body.dark-mode .column-count { background: #3a3e4e; color: #c0c5d5; }
+    .cards { flex-grow: 1; display: flex; flex-direction: column; gap: 0.75rem; overflow-y: auto; padding-right: 6px; margin-right: -6px; }
+    .cards::-webkit-scrollbar { width: 6px; }
+    .cards::-webkit-scrollbar-track { background: transparent; }
+    .cards::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
+    .cards::-webkit-scrollbar-thumb:hover { background: #bbb; }
+    body.dark-mode .cards::-webkit-scrollbar-thumb { background: #4a4e5e; }
+    body.dark-mode .cards::-webkit-scrollbar-thumb:hover { background: #5a5e6e; }
+    .empty-message { text-align: center; padding: 2rem 1rem; color: var(--text-secondary); font-size: 0.9rem; }
+
+    /* CARD DIZAJN */
+    .card { background: var(--surface); border-radius: 8px; padding: 0.75rem; box-shadow: var(--shadow-sm); position: relative; cursor: pointer; font-size: 0.9rem; transition: all 0.2s ease; border-left: 4px solid; }
+    .card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+    .card.done { opacity: 0.8; background: #f9fafb; }
+    body.dark-mode .card.done { background: #252836; opacity: 0.7; }
+    .card.urgent { border-left-color: var(--urgent); box-shadow: 0 0 0 1px var(--urgent); }
+    .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem; }
+    .card-title { font-weight: 600; line-height: 1.3; color: var(--text-primary); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; padding-right: 0.5rem; }
+    .card-icon { flex-shrink: 0; width: 20px; height: 20px; color: var(--text-secondary); }
+    .card-footer { display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; color: var(--text-secondary); }
+    .card-code { font-weight: 500; }
+    .card-days { font-weight: 600; background: #eee; padding: 2px 6px; border-radius: 4px; }
+    body.dark-mode .card-days { background: #3a3e4e; }
+
+    /* MODAL DIZAJN */
+    .modal, .status-modal { position: fixed; inset: 0; background: rgba(20, 22, 36, 0.6); display: flex; align-items: center; justify-content: center; z-index: 1000; opacity: 0; visibility: hidden; transition: opacity 0.3s ease, visibility 0s 0.3s linear; }
+    .modal.show, .status-modal.show { opacity: 1; visibility: visible; transition-delay: 0s; }
+    .modal-content, .status-content { background: var(--surface); border-radius: 12px; padding: 1.5rem; width: 90%; max-width: 500px; position: relative; box-shadow: var(--shadow-md); transform: scale(0.95) translateY(10px); transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); }
+    .modal.show .modal-content, .status-modal.show .status-content { transform: scale(1) translateY(0); }
+    .close { position: absolute; top: 10px; right: 12px; cursor: pointer; font-size: 1.5rem; line-height: 1; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: var(--bg); color: var(--text-secondary); transition: all 0.2s ease; }
+    .close:hover { background: #e5e5e5; color: var(--text-primary); }
+    body.dark-mode .close:hover { background: #3a3e4e; }
+    .modal-content h3, .status-content h3 { margin: 0 0 1rem; }
+    .modal-content p, .status-content p { margin: 0.5rem 0; line-height: 1.6; }
+    .modal-content strong { color: var(--text-primary); }
+    
+    /* NOVO: Stilovi za Kalendar pogled */
+    .calendar-view {
+      display: flex;
+      gap: 1rem;
+      height: calc(100vh - 120px);
+    }
+    #external-events {
+      width: 280px;
+      flex-shrink: 0;
+      padding: 1rem;
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      background: var(--surface);
+      overflow-y: auto;
+    }
+    #external-events h4 {
+      margin-top: 0;
+      margin-bottom: 1rem;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 0.5rem;
+    }
+    .fc-event-draggable {
+      padding: 0.5rem;
+      margin-bottom: 0.5rem;
+      background: var(--col-bg);
+      border-radius: 6px;
+      cursor: move;
+      font-size: 0.85rem;
+      border-left: 4px solid var(--primary);
+    }
+    #calendar {
+      flex-grow: 1;
+      padding: 1rem;
+      background: var(--surface);
+      border-radius: 12px;
+    }
+    /* Klasa za sakrivanje neaktivnog pogleda */
+    .view-hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h2 id="main-title">Kanban Proizvodnje</h2>
+    <div class="controls">
+      <button id="viewToggleBtn">📅 Kalendar Slikanja</button>
+      <input type="search" id="searchInput" placeholder="Pretraži...">
+      <select id="sortSelect">
+        <option value="default">Sortiraj...</option>
+        <option value="newest">Najnovije prvo</option>
+        <option value="oldest">Najstarije prvo</option>
+      </select>
+      <span class="status-banner" id="status-banner">Učitavanje…</span>
+      <div class="legend" id="legend"></div>
+      <button id="themeToggleBtn">🌙</button>
+      <button id="reloadBtn">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/></svg>
+        Učitaj
+      </button>
+    </div>
+  </div>
+
+  <div id="kanbanView">
+    <div class="board-wrapper">
+      <div class="board" id="board"></div>
+    </div>
+  </div>
+
+  <div id="calendarView" class="calendar-view view-hidden">
+    <div id="external-events">
+      <h4>Nije Slikano</h4>
+      <div id="unscheduled-list">
+        </div>
+    </div>
+    <div id="calendar"></div>
+  </div>
+
+
+  <div id="modal" class="modal"></div>
+  <div id="statusModal" class="status-modal"></div>
+
+  <script>
+    const endpoint = "https://script.google.com/macros/s/AKfycbwhKEBafSBhrjNYc5oAosp6kRW4q0aInuTBt-tAZKdXARZskavi1qJdYWJRuLLRZnpTmw/exec";
+    let allItems = [];
+    const STATUSES = [
+      'Proizvodnja', 'Završeno u proizvodnji', 'Vez',
+      'Završeno na vezu', 'Pakovanje', 'Spremno za Magacin'
+    ];
+    let currentFilter = 'Sve';
+
+    const ICONS = {
+      camera: `<svg class="card-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3"></circle></svg>`,
+      noCamera: `<svg class="card-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 2l20 20"/><path d="M12 13a3 3 0 0 1-3-3m-1.5-5a9.3 9.3 0 0 0-4.08 1.08L3 7H2v5"/><path d="M16.5 4H20v3.5l-1.68-1.68c-.89.6-1.87 1.05-2.92 1.32"/><path d="M22 12c0 4.42-3.58 8-8 8s-6.9-2.7-7.78-6.42"/></svg>`
+    };
+
+    let calendar; // NOVO: Globalna varijabla za kalendar
+
+    // =======================================================
+    // FUNKCIJE ZA KANBAN
+    // =======================================================
+    function initializeBoard() {
+      const board = document.getElementById('board');
+      board.innerHTML = '';
+      STATUSES.forEach(status => {
+        const column = document.createElement('div');
+        column.className = 'column';
+        column.dataset.status = status;
+        column.innerHTML = `
+          <div class="col-header" onclick="showStatusInfo('${status}')">
+            <div class="col-header-top">
+              <span>${status}</span>
+              <span class="column-count" id="count-${status}"></span>
+            </div>
+          </div>
+          <div class="cards"></div>`;
+        board.appendChild(column);
+      });
+    }
+
+    function fetchAndRender() {
+      document.getElementById('status-banner').textContent = 'Učitavanje...';
+      fetch(`${endpoint}?_=${Date.now()}`)
+        .then(response => {
+          if (!response.ok) throw new Error(`Greška status: ${response.status}`);
+          return response.json();
+        })
+        .then(data => {
+          allItems = data.items || [];
+          buildLegend(allItems);
+          renderBoard(allItems);
+          document.getElementById('status-banner').textContent = `Učitano ${allItems.length} proizvoda.`;
+        })
+        .catch(error => {
+          document.getElementById('status-banner').textContent = `Greška: ${error.message}`;
+        });
+    }
+
+    function buildLegend(items) {
+      const counts = items.reduce((acc, i) => {
+        const p = i.proizvodnja || 'Nepoznato';
+        acc[p] = (acc[p] || 0) + 1;
+        return acc;
+      }, {});
+
+      const legend = document.getElementById('legend');
+      legend.innerHTML = '';
+      const sortedKeys = ['Sve', ...Object.keys(counts).sort()];
+
+      sortedKeys.forEach(prod => {
+        const count = prod === 'Sve' ? items.length : counts[prod];
+        const el = document.createElement('div');
+        el.className = `legend-item ${currentFilter === prod ? 'active' : ''}`;
+        const color = prod === 'Sve' ? '#888' : colorFromString(prod);
+        el.innerHTML = `<div class="legend-color" style="background:${color}"></div>${prod} (${count})`;
+        el.onclick = () => {
+          currentFilter = prod;
+          renderBoard(allItems);
+          buildLegend(items);
+        };
+        legend.appendChild(el);
+      });
+    }
+
+    function renderBoard(items) {
+      document.querySelectorAll('.column .cards').forEach(col => col.innerHTML = '');
+      const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+      const sortBy = document.getElementById('sortSelect').value;
+      let filteredItems = items.filter(item => currentFilter === 'Sve' || item.proizvodnja === currentFilter);
+      if (searchTerm) {
+        filteredItems = filteredItems.filter(item => (item.name || '').toLowerCase().includes(searchTerm) || (item.product_code || '').toLowerCase().includes(searchTerm));
+      }
+      if (sortBy === 'newest') filteredItems.sort((a, b) => (b.days_since_publish || 0) - (a.days_since_publish || 0));
+      else if (sortBy === 'oldest') filteredItems.sort((a, b) => (a.days_since_publish || 0) - (b.days_since_publish || 0));
+      
+      filteredItems.forEach(item => {
+        const status = (item.status || '').trim();
+        const column = document.querySelector(`.column[data-status="${status}"] .cards`);
+        if (!column) return;
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.style.borderColor = colorFromString(item.proizvodnja || '');
+        if (status === 'Spremno za Magacin') card.classList.add('done');
+        if (item.alert) card.classList.add('urgent');
+        card.innerHTML = `<div class="card-header"><div class="card-title">${item.name || item.product_code || '-'}</div><div title="${item.slikan ? 'Slikano' : 'Nije slikano'}">${item.slikan ? ICONS.camera : ICONS.noCamera}</div></div><div class="card-footer"><span class="card-code">${item.product_code || '-'}</span><span class="card-days">${item.days_since_publish || 0}d</span></div>`;
+        card.onclick = () => showModal(item);
+        column.appendChild(card);
+      });
+      STATUSES.forEach(s => {
+        const columnCards = document.querySelector(`.column[data-status="${s}"] .cards`);
+        const count = columnCards.children.length;
+        const countEl = document.getElementById(`count-${s}`);
+        if (countEl) countEl.textContent = count;
+        if (count === 0) columnCards.innerHTML = `<div class="empty-message">Nema kartica</div>`;
+      });
+    }
+    
+    // =======================================================
+    // NOVO: FUNKCIJE ZA KALENDAR
+    // =======================================================
+
+    function initializeCalendar() {
+      const calendarEl = document.getElementById('calendar');
+      const containerEl = document.getElementById('external-events');
+      
+      new FullCalendar.Draggable(containerEl, {
+        itemSelector: '.fc-event-draggable',
+        eventData: function(eventEl) {
+          return {
+            title: eventEl.innerText,
+            extendedProps: {
+              productId: eventEl.dataset.id
+            }
+          };
+        }
+      });
+
+      calendar = new FullCalendar.Calendar(calendarEl, {
+        headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,dayGridWeek' },
+        locale: 'sr',
+        droppable: true,
+        editable: true,
+        eventReceive: function(info) {
+          const productId = info.event.extendedProps.productId;
+          const scheduledDate = info.event.startStr.split('T')[0];
+          console.log(`Zakazujem ${productId} za ${scheduledDate}`);
+          
+          updateProductSchedule(productId, scheduledDate);
+          info.draggedEl.remove();
+        }
+      });
+      calendar.render();
+    }
+
+    function populateUnscheduledList(items) {
+      const listEl = document.getElementById('unscheduled-list');
+      listEl.innerHTML = '';
+      const unscheduledItems = items.filter(item => !item.slikan);
+      
+      if (unscheduledItems.length === 0) {
+        listEl.innerHTML = '<p style="font-size: 0.9rem; color: var(--text-secondary);">Svi proizvodi su slikani.</p>';
+        return;
+      }
+
+      unscheduledItems.forEach(item => {
+        const itemEl = document.createElement('div');
+        itemEl.className = 'fc-event-draggable';
+        itemEl.innerText = item.name || item.product_code;
+        itemEl.dataset.id = item.product_code; 
+        listEl.appendChild(itemEl);
+      });
+    }
+
+    function updateProductSchedule(productId, date) {
+      document.getElementById('status-banner').textContent = 'Čuvanje datuma...';
+
+      // Slanje podataka serveru
+      fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        // Google Apps Script zahteva da se JSON payload pretvori u string, 
+        // ali bez dodatnih opcija kao što su mode ili redirect.
+        body: JSON.stringify({ 
+          action: 'schedule_photo', 
+          productId: productId, 
+          date: date 
+        }),
+      })
+      .then(response => {
+        // Čekamo odgovor od servera i pretvaramo ga u JSON
+        return response.json();
+      })
+      .then(data => {
+        console.log('Odgovor sa servera:', data);
+        if (data.status === 'success') {
+          document.getElementById('status-banner').textContent = `Datum sačuvan za ${productId}.`;
+        } else {
+          // Ako server vrati grešku, prikazujemo je
+          throw new Error(data.message || 'Server je vratio nepoznatu grešku.');
+        }
+      })
+      .catch(error => {
+        // Ovde hvatamo sve greške, uključujući i "Failed to fetch"
+        console.error('Došlo je do greške prilikom slanja podataka:', error);
+        document.getElementById('status-banner').textContent = `Greška: ${error.message}`;
+        alert(`Došlo je do greške pri čuvanju.\n\nNajčešći uzrok je pogrešno podešen "Deployment" (mora biti "Anyone"). Proverite Korak 1.\n\nDetalji greške: ${error.message}`);
+      });
+    }
+
+
+    // =======================================================
+    // ZAJEDNIČKE FUNKCIJE (MODALI, POMOĆNE, ITD.)
+    // =======================================================
+    function showStatusInfo(status) {
+        const itemsInStatus = allItems.filter(i => (i.status || '').trim() === status);
+        if (!itemsInStatus.length) return;
+        const total = itemsInStatus.length;
+        const isk = itemsInStatus.reduce((a, i) => a + (Number(i.iskrojeno) || 0), 0);
+        const sl = itemsInStatus.filter(i => !!i.slikan).length;
+        const totalValue = itemsInStatus.reduce((a, i) => a + (Number(i.total_price) || 0), 0);
+        const k = (totalValue / 1000).toFixed(1) + 'k';
+        const modal = document.getElementById('statusModal');
+        modal.innerHTML = `<div class="status-content"><div class="close" onclick="hideStatus()">✕</div><h3>${status} – Statistika</h3><p><strong>Ukupno artikala:</strong> ${total}</p><p><strong>Ukupno iskrojeno:</strong> ${isk}</p><p><strong>Slikano:</strong> ${sl}</p><p><strong>Ukupna vrednost:</strong> ~${k} DIN</p></div>`;
+        modal.classList.add('show');
+        document.body.classList.add('modal-open');
+    }
+
+    function hideStatus() {
+        document.getElementById('statusModal').classList.remove('show');
+        document.body.classList.remove('modal-open');
+    }
+
+    function showModal(item) {
+        const m = document.getElementById('modal');
+        const rawTotal = Number(item.total_price) || 0;
+        let formattedTotal;
+        if (rawTotal >= 1000) formattedTotal = (rawTotal / 1000).toFixed(1) + 'k';
+        else formattedTotal = rawTotal.toFixed(2);
+        m.innerHTML = `<div class="modal-content"><div class="close" onclick="hideModal()">✕</div><h3>${item.name || item.product_code || '-'}</h3><p><strong>Šifra:</strong> ${item.product_code || '-'}</p><p><strong>Status:</strong> ${item.status || '-'}</p><p><strong>Proizvodnja:</strong> ${item.proizvodnja || '-'}</p><p><strong>Dobavljač:</strong> ${item.dobavljac || '-'}</p><p><strong>Iskrojeno:</strong> ${item.iskrojeno || 0}</p><p><strong>Ukupna vrednost:</strong> ${formattedTotal} DIN</p><p><strong>Datum objave:</strong> ${item.datum_objave || '-'}</p><p><strong>Slikano:</strong> ${item.slikan ? 'Da' : 'Ne'}</p></div>`;
+        m.classList.add('show');
+        document.body.classList.add('modal-open');
+    }
+
+    function hideModal() {
+        document.getElementById('modal').classList.remove('show');
+        document.body.classList.remove('modal-open');
+    }
+
+    function colorFromString(str) {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) { hash = str.charCodeAt(i) + ((hash << 5) - hash); hash &= hash; }
+        return `hsl(${Math.abs(hash) % 360}, 65%, 55%)`;
+    }
+    
+    function setupTheme() {
+        const themeToggleBtn = document.getElementById('themeToggleBtn');
+        const currentTheme = localStorage.getItem('theme');
+        if (currentTheme === 'dark') {
+            document.body.classList.add('dark-mode');
+            themeToggleBtn.textContent = '☀️';
+        }
+        themeToggleBtn.onclick = () => {
+            document.body.classList.toggle('dark-mode');
+            let theme = 'light';
+            if (document.body.classList.contains('dark-mode')) {
+                theme = 'dark';
+                themeToggleBtn.textContent = '☀️';
+            } else {
+                themeToggleBtn.textContent = '🌙';
+            }
+            localStorage.setItem('theme', theme);
+        };
+    }
+    
+    // =======================================================
+    // INICIJALIZACIJA APLIKACIJE I EVENT LISTENERI
+    // =======================================================
+    document.getElementById('reloadBtn').onclick = fetchAndRender;
+    document.getElementById('searchInput').addEventListener('input', () => renderBoard(allItems));
+    document.getElementById('sortSelect').addEventListener('change', () => renderBoard(allItems));
+
+    document.addEventListener('DOMContentLoaded', () => {
+        initializeBoard();
+        fetchAndRender();
+        setupTheme();
+        initializeCalendar(); // NOVO
+        setInterval(fetchAndRender, 600000);
+
+        // NOVO: Logika za promenu pogleda
+        const viewToggleBtn = document.getElementById('viewToggleBtn');
+        const mainTitle = document.getElementById('main-title');
+        const kanbanView = document.getElementById('kanbanView');
+        const calendarView = document.getElementById('calendarView');
+        const kanbanControls = document.querySelectorAll('#searchInput, #sortSelect, #legend');
+
+        viewToggleBtn.addEventListener('click', () => {
+            const isKanbanVisible = !kanbanView.classList.contains('view-hidden');
+            if (isKanbanVisible) {
+                // Prebaci na Kalendar
+                kanbanView.classList.add('view-hidden');
+                calendarView.classList.remove('view-hidden');
+                mainTitle.textContent = 'Kalendar Slikanja';
+                viewToggleBtn.textContent = '📊 Kanban Pogled';
+                kanbanControls.forEach(c => c.classList.add('view-hidden'));
+                populateUnscheduledList(allItems);
+            } else {
+                // Prebaci na Kanban
+                kanbanView.classList.remove('view-hidden');
+                calendarView.classList.add('view-hidden');
+                mainTitle.textContent = 'Kanban Proizvodnje';
+                viewToggleBtn.textContent = '📅 Kalendar Slikanja';
+                kanbanControls.forEach(c => c.classList.remove('view-hidden'));
+            }
+        });
+    });
+  </script>
+</body>
+</html>
