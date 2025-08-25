@@ -74,6 +74,10 @@
     .card-title { font-weight: 600; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; padding-right: 0.5rem; }
     .card-footer { display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; color: var(--text-secondary); }
 
+    /* IZMJENA: Dodan stil za ikonicu */
+    .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem; }
+    .card-icon { flex-shrink: 0; width: 20px; height: 20px; color: var(--text-secondary); }
+
     /* Calendar Styles */
     .calendar-view { display: flex; gap: 1rem; height: calc(100vh - 120px); }
     #external-events { width: 280px; flex-shrink: 0; padding: 1rem; border: 1px solid var(--border-color); border-radius: 12px; background: var(--surface); overflow-y: auto; }
@@ -154,16 +158,18 @@
     let currentFilter = 'Sve';
     let calendar;
 
-    // IZMENJENO: Glavna funkcija za ažuriranje prikaza
+    // IZMJENA: Ikonice su sada definirane ovdje
+    const ICONS = {
+      camera: `<svg class="card-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3"></circle></svg>`,
+      noCamera: `<svg class="card-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="2" x2="22" y2="22"></line><path d="M10.2 10.2L8 12.4"></path><path d="M14.8 14.8L16 13.6"></path><path d="M12 18a6 6 0 0 1-6-6"></path><path d="M18 12a6 6 0 0 0-6-6"></path></svg>`
+    };
+
     function updateUI() {
         const showArchived = document.getElementById('showArchivedToggle').checked;
         let itemsToDisplay = allItems;
-
-        // NOVA LOGIKA: Filtriraj po "arhivirano" checkboxu
         if (!showArchived) {
             itemsToDisplay = allItems.filter(item => !item.arhivirano);
         }
-        
         renderBoard(itemsToDisplay);
         buildLegend(itemsToDisplay);
     }
@@ -179,16 +185,13 @@
         .then(data => {
           if (data.error) throw new Error(data.error);
           allItems = data.items || [];
-          updateUI(); // Koristimo novu glavnu funkciju
+          updateUI();
           renderCalendarEvents(allItems);
-          populateUnscheduledList(allItems); // Ažuriramo i listu za kalendar
+          populateUnscheduledList(allItems);
           document.getElementById('status-banner').textContent = `Učitano ${allItems.length} proizvoda.`;
         })
         .catch(error => { document.getElementById('status-banner').textContent = `Greška: ${error.message}`; });
     }
-    
-    // ... ostatak JavaScript koda ostaje skoro isti ...
-    // ... jedina izmena je u event listener-u na dnu ...
 
     function initializeBoard() {
       const board = document.getElementById('board');
@@ -201,6 +204,7 @@
       });
     }
 
+    // IZMJENA: Ažurirana funkcija za renderiranje kartica
     function renderBoard(items) {
       document.querySelectorAll('.column .cards').forEach(col => col.innerHTML = '');
       const searchTerm = document.getElementById('searchInput').value.toLowerCase();
@@ -219,7 +223,19 @@
         const card = document.createElement('div');
         card.className = 'card';
         card.style.borderColor = colorFromString(item.proizvodnja || '');
-        card.innerHTML = `<div class="card-header"><div class="card-title">${item.name || item.product_code || '-'}</div></div><div class="card-footer"><span class="card-code">${item.product_code || '-'}</span><span class="card-days">${item.days_since_publish || 0}d</span></div>`;
+        
+        const iconHtml = item.slikan ? ICONS.camera : ICONS.noCamera;
+        
+        card.innerHTML = `
+            <div class="card-header">
+                <div class="card-title">${item.name || item.product_code || '-'}</div>
+                <div title="${item.slikan ? 'Slikano' : 'Nije slikano'}">${iconHtml}</div>
+            </div>
+            <div class="card-footer">
+                <span class="card-code">${item.product_code || '-'}</span>
+                <span class="card-days">${item.days_since_publish || 0}d</span>
+            </div>`;
+        
         card.onclick = () => showModal(item);
         column.appendChild(card);
       });
@@ -280,7 +296,7 @@
       if (!calendar) return;
       calendar.getEvents().forEach(event => event.remove());
       const events = items
-        .filter(item => item.datumSlikanja && !item.arhivirano) // Ne prikazuj arhivirane ni na kalendaru
+        .filter(item => item.datumSlikanja && !item.arhivirano)
         .map(item => ({
           title: item.name || item.product_code,
           start: new Date(item.datumSlikanja).toISOString().split('T')[0],
@@ -357,7 +373,6 @@
       initializeCalendar();
       setInterval(fetchAndRender, 600000);
 
-      // Svi listeneri koji utiču na prikaz podataka sada pozivaju updateUI()
       document.getElementById('reloadBtn').onclick = fetchAndRender;
       document.getElementById('searchInput').addEventListener('input', updateUI);
       document.getElementById('sortSelect').addEventListener('change', updateUI);
